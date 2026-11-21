@@ -3,6 +3,8 @@
  * lands on, and how its time is written.
  */
 
+import { t } from '../i18n';
+
 /**
  * The index of the item whose key is closest to `target`, or -1 for an
  * empty list. The keys must not decrease, which holds for every series the
@@ -35,7 +37,7 @@ export function nearestBy<T>(
 export function formatAt(tMs: number): string {
   if (!Number.isFinite(tMs)) return '';
   const s = Math.round(tMs / 10) / 100;
-  return `at ${s.toFixed(2).replace(/\.?0+$/, '')}s`;
+  return t('at {s}s', { s: s.toFixed(2).replace(/\.?0+$/, '') });
 }
 
 /** Where the readout is aimed. */

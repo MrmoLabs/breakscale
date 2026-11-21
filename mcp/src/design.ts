@@ -15,6 +15,7 @@ import {
   type Topology,
 } from '../../src/sim/types';
 import { defaultLabel, suggestKind } from './kinds';
+import { t } from '../../src/i18n';
 
 /* ------------------------------------------------------------------ *
  * Turning what a model wrote into a topology the engine can run.
@@ -94,16 +95,21 @@ export function buildTopology(input: unknown): DesignResult {
   };
 
   if (!Array.isArray(body.nodes) || body.nodes.length === 0) {
-    return { ok: false, errors: ['`nodes` must be a non-empty array.'] };
+    return { ok: false, errors: [t('`nodes` must be a non-empty array.')] };
   }
   if (body.nodes.length > MAX_NODES) {
     return {
       ok: false,
-      errors: [`That is ${body.nodes.length} nodes; the limit is ${MAX_NODES}.`],
+      errors: [
+        t('That is {n} nodes; the limit is {max}.', {
+          n: body.nodes.length,
+          max: MAX_NODES,
+        }),
+      ],
     };
   }
   if (body.edges !== undefined && !Array.isArray(body.edges)) {
-    return { ok: false, errors: ['`edges` must be an array.'] };
+    return { ok: false, errors: [t('`edges` must be an array.')] };
   }
 
   const nodes: SimNode[] = [];
@@ -112,23 +118,31 @@ export function buildTopology(input: unknown): DesignResult {
 
   body.nodes.forEach((raw: unknown, i: number) => {
     const where = `nodes[${i}]`;
-    if (!isRecord(raw)) return fail(`${where} is not an object.`);
+    if (!isRecord(raw)) return fail(t('{where} is not an object.', { where }));
     const id = raw.id;
     if (typeof id !== 'string' || id.trim() === '') {
       return fail(
-        `${where} needs an \`id\`, a short unique string like 'api' or 'db'.`,
+        t("{where} needs an `id`, a short unique string like 'api' or 'db'.", {
+          where,
+        }),
       );
     }
     const name = `node '${id}'`;
-    if (ids.has(id)) return fail(`Two nodes share the id '${id}'. Ids must be unique.`);
+    if (ids.has(id))
+      return fail(t("Two nodes share the id '{id}'. Ids must be unique.", { id }));
     ids.add(id);
 
     const kind = raw.kind;
     if (typeof kind !== 'string' || !NODE_KINDS.includes(kind as NodeKind)) {
       const hint = typeof kind === 'string' ? suggestKind(kind) : null;
       return fail(
-        `${name} has kind ${JSON.stringify(kind)}, which is not a component.` +
-          (hint ? ` Did you mean '${hint}'?` : ` Kinds: ${quoted(NODE_KINDS)}.`),
+        t('{name} has kind {kind}, which is not a component.', {
+          name,
+          kind: JSON.stringify(kind),
+        }) +
+          (hint
+            ? t(" Did you mean '{hint}'?", { hint })
+            : t(' Kinds: {list}.', { list: quoted(NODE_KINDS) })),
       );
     }
 
@@ -156,18 +170,24 @@ export function buildTopology(input: unknown): DesignResult {
   const rawEdges: unknown[] = Array.isArray(body.edges) ? body.edges : [];
   rawEdges.forEach((raw, i) => {
     const where = `edges[${i}]`;
-    if (!isRecord(raw)) return fail(`${where} is not an object.`);
+    if (!isRecord(raw)) return fail(t('{where} is not an object.', { where }));
     const { from, to } = raw;
     if (typeof from !== 'string' || typeof to !== 'string') {
-      return fail(`${where} needs \`from\` and \`to\`, each a node id.`);
+      return fail(t('{where} needs `from` and `to`, each a node id.', { where }));
     }
     const missing = [from, to].filter((end) => !ids.has(end));
     if (missing.length > 0) {
       return fail(
-        `${where} goes from '${from}' to '${to}', but there is no node ${quoted(missing)}.`,
+        t("{where} goes from '{from}' to '{to}', but there is no node {missing}.", {
+          where,
+          from,
+          to,
+          missing: quoted(missing),
+        }),
       );
     }
-    if (from === to) return fail(`${where} connects '${from}' to itself.`);
+    if (from === to)
+      return fail(t("{where} connects '{from}' to itself.", { where, from }));
     // The engine lets a consumer be wired to its queue in either direction,
     // so an edge from a worker INTO a queue makes the worker drain that
     // queue too. A model means "publishes to" by it, and the result is a
@@ -182,20 +202,27 @@ export function buildTopology(input: unknown): DesignResult {
       behaviourFor(target.kind).buffersForConsumers
     ) {
       return fail(
-        `${where} goes from ${source.kind} '${from}' into ${target.kind} '${to}'. A ${source.kind} wired to a ${target.kind} drains it, whichever way the edge points. ` +
-          `If '${from}' consumes '${to}', draw it as '${to}' to '${from}'. If '${from}' publishes to '${to}', put a service between them.`,
+        t(
+          "{where} goes from {sourceKind} '{from}' into {targetKind} '{to}'. A {sourceKind} wired to a {targetKind} drains it, whichever way the edge points. If '{from}' consumes '{to}', draw it as '{to}' to '{from}'. If '{from}' publishes to '{to}', put a service between them.",
+          { where, sourceKind: source.kind, from, targetKind: target.kind, to },
+        ),
       );
     }
     const id = typeof raw.id === 'string' && raw.id ? raw.id : `${from}->${to}`;
     if (edgeIds.has(id)) {
-      return fail(`${where} repeats the connection '${from}' to '${to}'.`);
+      return fail(
+        t("{where} repeats the connection '{from}' to '{to}'.", { where, from, to }),
+      );
     }
     edgeIds.add(id);
 
     const weight = raw.weight ?? 1;
     if (typeof weight !== 'number' || !Number.isFinite(weight) || weight < 0) {
       return fail(
-        `${where} has weight ${JSON.stringify(raw.weight)}; use a number, 0 or more.`,
+        t('{where} has weight {v}; use a number, 0 or more.', {
+          where,
+          v: JSON.stringify(raw.weight),
+        }),
       );
     }
     const edge: SimEdge = { id, from, to, weight };
@@ -217,7 +244,10 @@ export function buildTopology(input: unknown): DesignResult {
       const loss = raw.lossRate;
       if (typeof loss !== 'number' || !Number.isFinite(loss) || loss < 0 || loss > 1) {
         return fail(
-          `${where} has lossRate ${JSON.stringify(loss)}; use a fraction from 0 to 1, so 0.05 drops 5%.`,
+          t('{where} has lossRate {v}; use a fraction from 0 to 1, so 0.05 drops 5%.', {
+            where,
+            v: JSON.stringify(loss),
+          }),
         );
       }
       if (loss > 0) edge.lossRate = loss;
@@ -228,7 +258,7 @@ export function buildTopology(input: unknown): DesignResult {
   // The fault schedule is optional. An entry the engine could not play is an
   // error here, not a silent drop as in the app, so the model can fix it.
   if (body.faults !== undefined && !Array.isArray(body.faults)) {
-    fail('`faults` must be an array.');
+    fail(t('`faults` must be an array.'));
   }
   const faults = sanitizeFaults(body.faults, { nodes, edges }, (i, why) =>
     fail(`faults[${i}] ${why}`),
@@ -239,7 +269,10 @@ export function buildTopology(input: unknown): DesignResult {
   const seed = sanitizeSeed(body.seed);
   if (body.seed !== undefined && seed === undefined) {
     fail(
-      `\`seed\` is ${JSON.stringify(body.seed)}; use a whole number from 0 to ${MAX_SEED}.`,
+      t('`seed` is {v}; use a whole number from 0 to {max}.', {
+        v: JSON.stringify(body.seed),
+        max: MAX_SEED,
+      }),
     );
   }
 
@@ -259,7 +292,7 @@ export function buildTopology(input: unknown): DesignResult {
   // design through. Anything that passed the checks above and fails here
   // is a bug in this file, not in the model's design.
   if (!isTopology(topology)) {
-    return { ok: false, errors: ['The design could not be built. This is a bug.'] };
+    return { ok: false, errors: [t('The design could not be built. This is a bug.')] };
   }
 
   const rawName = isRecord(input) ? input.name : undefined;
@@ -278,7 +311,7 @@ function expandConfig(
   const config = defaultConfig(kind);
   if (raw === undefined) return config;
   if (!isRecord(raw)) {
-    fail(`${name} has a \`config\` that is not an object.`);
+    fail(t('{name} has a `config` that is not an object.', { name }));
     return config;
   }
   const settable = config as unknown as Record<string, unknown>;
@@ -286,22 +319,32 @@ function expandConfig(
     if (!FIELDS.has(key)) {
       const hint = suggest(key, WIRE_SCHEMA[kind]);
       fail(
-        `${name} (${kind}) has no setting '${key}'.` +
+        t("{name} ({kind}) has no setting '{key}'.", { name, kind, key }) +
           (hint
-            ? ` Did you mean '${hint}'?`
-            : ` Its settings are ${quoted(WIRE_SCHEMA[kind])}.`),
+            ? t(" Did you mean '{hint}'?", { hint })
+            : t(' Its settings are {list}.', { list: quoted(WIRE_SCHEMA[kind]) })),
       );
       continue;
     }
     const words = WORD_FIELDS[key];
     if (words) {
       if (typeof value !== 'string' || !words.includes(value)) {
-        fail(`${name}: '${key}' must be one of ${quoted(words)}.`);
+        fail(
+          t("{name}: '{key}' must be one of {list}.", {
+            name,
+            key,
+            list: quoted(words),
+          }),
+        );
         continue;
       }
     } else if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
       fail(
-        `${name}: '${key}' must be a number, 0 or more; got ${JSON.stringify(value)}.`,
+        t("{name}: '{key}' must be a number, 0 or more; got {v}.", {
+          name,
+          key,
+          v: JSON.stringify(value),
+        }),
       );
       continue;
     }

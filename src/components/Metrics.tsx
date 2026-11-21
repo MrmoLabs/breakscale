@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { t } from '../i18n';
 import type {
   FailureReason,
   HistoryPoint,
@@ -275,7 +276,7 @@ function PinKey({ on }: { on: boolean }) {
   return (
     <li className="mx-key">
       <span className="mx-key-line mx-key-pin" aria-hidden="true" />
-      <span className="mx-key-name">pinned</span>
+      <span className="mx-key-name">{t('pinned')}</span>
     </li>
   );
 }
@@ -389,7 +390,7 @@ function ChartHead({
   return (
     <header className="mx-head">
       <span className="label mx-eyebrow">
-        <Term id={captionTerm}>{caption}</Term>
+        <Term id={captionTerm}>{t(caption)}</Term>
       </span>
       <span className="mx-head-right">
         {extra}
@@ -406,7 +407,7 @@ function ChartHead({
             that teaches nothing.
           */}
           <span className="unit mx-unit">
-            {unitTerm ? <Term id={unitTerm}>{unit}</Term> : unit}
+            {unitTerm ? <Term id={unitTerm}>{t(unit)}</Term> : t(unit)}
           </span>
         </span>
       </span>
@@ -509,7 +510,7 @@ const Frame = memo(function Frame({
 
       <StartLabel tEnd={tEnd} left={PAD_L} right={right} />
       <text className="mx-xlabel" x={right} y={CHART_H - 8} textAnchor="end">
-        now
+        {t('now')}
       </text>
 
       {empty && (
@@ -520,7 +521,7 @@ const Frame = memo(function Frame({
           dy="0.32em"
           textAnchor="middle"
         >
-          {emptyLabel}
+          {t(emptyLabel)}
         </text>
       )}
     </>
@@ -653,7 +654,7 @@ const LatencyChart = memo(function LatencyChart({
   const dim = hs ? !hsMeasured : !measured;
 
   return (
-    <section className="mx-chart" aria-label="Latency over the last 60 seconds">
+    <section className="mx-chart" aria-label={t('Latency over the last 60 seconds')}>
       <ChartHead
         caption="Latency"
         captionTerm="latency"
@@ -668,7 +669,7 @@ const LatencyChart = memo(function LatencyChart({
         className="mx-plot"
         ref={ref}
         style={{ height: CHART_H }}
-        aria-label="Latency chart. Arrow keys read each sample."
+        aria-label={t('Latency chart. Arrow keys read each sample.')}
         {...hover.plotProps}
       >
         <PlotLayer w={w}>
@@ -739,7 +740,12 @@ const LatencyChart = memo(function LatencyChart({
         on={hover.keyed}
         text={
           hs
-            ? `${formatAt(hs.t)}: p50 ${read(p50, (p) => p.p50)}, p95 ${read(p95, (p) => p.p95)}, p99 ${read(p99, (p) => p.p99)}`
+            ? t('{at}: p50 {p50}, p95 {p95}, p99 {p99}', {
+                at: formatAt(hs.t),
+                p50: read(p50, (p) => p.p50),
+                p95: read(p95, (p) => p.p95),
+                p99: read(p99, (p) => p.p99),
+              })
             : ''
         }
       />
@@ -884,7 +890,7 @@ const ThroughputChart = memo(function ThroughputChart({
   const lostValue = hs ? (hsSettled ? formatPct(hs.errorRate) : NA) : rate(dropped);
 
   return (
-    <section className="mx-chart" aria-label="Throughput over the last 60 seconds">
+    <section className="mx-chart" aria-label={t('Throughput over the last 60 seconds')}>
       <ChartHead
         caption="Throughput"
         captionTerm="throughput"
@@ -896,7 +902,7 @@ const ThroughputChart = memo(function ThroughputChart({
           live ? (
             <span className="mx-dropped">
               <span className="label">
-                <Term id="dropped">Lost</Term>
+                <Term id="dropped">{t('Lost')}</Term>
               </span>
               <span className="num num-md is-danger">{formatCompact(dropped)}</span>
             </span>
@@ -908,7 +914,7 @@ const ThroughputChart = memo(function ThroughputChart({
         className="mx-plot"
         ref={ref}
         style={{ height: CHART_H }}
-        aria-label="Throughput chart. Arrow keys read each sample."
+        aria-label={t('Throughput chart. Arrow keys read each sample.')}
         {...hover.plotProps}
       >
         <PlotLayer w={w}>
@@ -941,28 +947,30 @@ const ThroughputChart = memo(function ThroughputChart({
                 ]
               : []
           }
-          value={hs ? `${formatCompact(hs.goodput)}/s succeeded` : undefined}
+          value={
+            hs ? t('{v}/s succeeded', { v: formatCompact(hs.goodput) }) : undefined
+          }
         />
       </div>
 
       <ul className="mx-legend">
         <LegendKey
           className="mx-key-offered"
-          name="offered"
+          name={t('offered')}
           term="offered"
           value={hs ? formatCompact(hs.offered) : rate(safeOffered)}
           dim={!hs && empty}
         />
         <LegendKey
           className="mx-key-goodput"
-          name="succeeded"
+          name={t('succeeded')}
           term="goodput"
           value={hs ? formatCompact(hs.goodput) : rate(safeGoodput)}
           dim={!hs && empty}
         />
         <LegendKey
           className="mx-key-gap"
-          name="lost"
+          name={t('lost')}
           term="dropped"
           value={lostValue}
           dim={hs ? !(hs.errorRate > 0) : !live}
@@ -973,7 +981,15 @@ const ThroughputChart = memo(function ThroughputChart({
         on={hover.keyed}
         text={
           hs
-            ? `${formatAt(hs.t)}: offered ${formatCompact(hs.offered)} a second, succeeded ${formatCompact(hs.goodput)} a second, lost ${lostValue}`
+            ? t(
+                '{at}: offered {offered} a second, succeeded {goodput} a second, lost {lost}',
+                {
+                  at: formatAt(hs.t),
+                  offered: formatCompact(hs.offered),
+                  goodput: formatCompact(hs.goodput),
+                  lost: lostValue,
+                },
+              )
             : ''
         }
       />
@@ -1216,7 +1232,7 @@ const FailureChart = memo(function FailureChart({
   return (
     <section
       className="mx-chart mx-fail-col"
-      aria-label="Failures over the last 60 seconds"
+      aria-label={t('Failures over the last 60 seconds')}
     >
       <ChartHead
         caption="Failures"
@@ -1232,7 +1248,7 @@ const FailureChart = memo(function FailureChart({
         className="mx-plot"
         ref={ref}
         style={{ height: CHART_H }}
-        aria-label="Failures chart. Arrow keys read each second."
+        aria-label={t('Failures chart. Arrow keys read each second.')}
         {...hover.plotProps}
       >
         <PlotLayer w={w}>
@@ -1264,8 +1280,8 @@ const FailureChart = memo(function FailureChart({
           value={
             hs
               ? rowsTotal > 0
-                ? `${formatRate(rowsTotal)} failing`
-                : 'none failing'
+                ? t('{rate} failing', { rate: formatRate(rowsTotal) })
+                : t('none failing')
               : undefined
           }
         />
@@ -1281,12 +1297,12 @@ const FailureChart = memo(function FailureChart({
       {quiet ? (
         <p className="mx-clean">
           {hs
-            ? `Nothing was failing ${formatAt(hs.t)}.`
+            ? t('Nothing was failing {at}.', { at: formatAt(hs.t) })
             : empty
-              ? idleText
+              ? t(idleText)
               : windowHadFailures
-                ? 'Recovered. Nothing is failing now.'
-                : 'Nothing has failed in the last 60 seconds.'}
+                ? t('Recovered. Nothing is failing now.')
+                : t('Nothing has failed in the last 60 seconds.')}
         </p>
       ) : (
         <ul className="mx-legend mx-legend-stack">
@@ -1306,7 +1322,7 @@ const FailureChart = memo(function FailureChart({
                       the panel a student reads WHILE something is going
                       wrong, so having to guess at "shed" or "throttled" is
                       exactly the failure this feature exists to prevent. */}
-                  <Term id={REASON_TERM[r.reason]}>{REASON_LABEL[r.reason]}</Term>
+                  <Term id={REASON_TERM[r.reason]}>{t(REASON_LABEL[r.reason])}</Term>
                 </span>
                 {/* Share as a length as well as a figure: with up to ten
                     reasons the hues are not separable on their own, so the
@@ -1329,8 +1345,13 @@ const FailureChart = memo(function FailureChart({
         text={
           hs
             ? rows.length === 0
-              ? `Nothing was failing ${formatAt(hs.t)}`
-              : `${formatAt(hs.t)}: ${rows.map((r) => `${REASON_LABEL[r.reason]} ${formatRate(r.rate)}`).join(', ')}`
+              ? t('Nothing was failing {at}', { at: formatAt(hs.t) })
+              : t('{at}: {list}', {
+                  at: formatAt(hs.t),
+                  list: rows
+                    .map((r) => `${t(REASON_LABEL[r.reason])} ${formatRate(r.rate)}`)
+                    .join(t(', ')),
+                })
             : ''
         }
       />
@@ -1461,7 +1482,7 @@ const RouteChart = memo(function RouteChart({
     const p = pointAt(points);
     if (!p) return NA;
     const v = value(p);
-    if (!Number.isFinite(v)) return mode === 'failing' ? 'idle' : 'none';
+    if (!Number.isFinite(v)) return mode === 'failing' ? t('idle') : t('none');
     return mode === 'failing' ? formatPct(p.errorRate) : formatMs(p.p99);
   };
   const dots = hs
@@ -1500,28 +1521,28 @@ const RouteChart = memo(function RouteChart({
      has no share failing, and one with nothing succeeding has no p99. */
   const reading = (r: RouteStats): string => {
     if (mode === 'failing') {
-      return r.goodputRps + r.failedRps > 0 ? formatPct(r.errorRate) : 'idle';
+      return r.goodputRps + r.failedRps > 0 ? formatPct(r.errorRate) : t('idle');
     }
-    return r.goodputRps > 0 ? formatMs(r.p99) : 'none';
+    return r.goodputRps > 0 ? formatMs(r.p99) : t('none');
   };
 
   return (
     <section
       className="mx-chart"
-      aria-label="Each traffic source over the last 60 seconds"
+      aria-label={t('Each traffic source over the last 60 seconds')}
     >
       <header className="mx-head">
         <span className="label mx-eyebrow">
-          <Term id="traffic-source">By traffic source</Term>
+          <Term id="traffic-source">{t('By traffic source')}</Term>
         </span>
-        <span className="mx-seg" role="group" aria-label="Show">
+        <span className="mx-seg" role="group" aria-label={t('Show')}>
           <button
             type="button"
             className="mx-seg-btn"
             aria-pressed={mode === 'failing'}
             onClick={() => setMode('failing')}
           >
-            Failing
+            {t('Failing')}
           </button>
           <button
             type="button"
@@ -1538,7 +1559,7 @@ const RouteChart = memo(function RouteChart({
         className="mx-plot"
         ref={ref}
         style={{ height: CHART_H }}
-        aria-label="Traffic source chart. Arrow keys read each sample."
+        aria-label={t('Traffic source chart. Arrow keys read each sample.')}
         {...hover.plotProps}
       >
         <PlotLayer w={w}>
@@ -1584,7 +1605,15 @@ const RouteChart = memo(function RouteChart({
         on={hover.keyed}
         text={
           hs
-            ? `${formatAt(hs.t)}: ${series.map((sr, i) => `${nameOf(sr.route.clientId)} ${sampled(windowed[i]!.points)}`).join(', ')}`
+            ? t('{at}: {list}', {
+                at: formatAt(hs.t),
+                list: series
+                  .map(
+                    (sr, i) =>
+                      `${nameOf(sr.route.clientId)} ${sampled(windowed[i]!.points)}`,
+                  )
+                  .join(t(', ')),
+              })
             : ''
         }
       />

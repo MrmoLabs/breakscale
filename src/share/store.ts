@@ -1,4 +1,5 @@
 import { type Bytes, encodeBytes, decodeBytes, type ShareResult } from '../share';
+import { t } from '../i18n';
 import { hasCrypto, open, seal } from './crypto';
 
 /* ------------------------------------------------------------------ *
@@ -148,7 +149,9 @@ export async function storeTopology(
     });
   } catch {
     throw new ShareStoreError(
-      'Could not reach the link store. Check your connection, or save the design to a file instead.',
+      t(
+        'Could not reach the link store. Check your connection, or save the design to a file instead.',
+      ),
     );
   }
 
@@ -158,17 +161,23 @@ export async function storeTopology(
     // as a pause rather than a refusal, and it says how long, because a
     // wait nobody has put a number on feels indefinite.
     throw new ShareStoreError(
-      'Too many links were made in a short time. Try again in a minute, or save the design to a file.',
+      t(
+        'Too many links were made in a short time. Try again in a minute, or save the design to a file.',
+      ),
     );
   }
   if (res.status === 413) {
     throw new ShareStoreError(
-      'That design is too big for the link store. Save it to a file instead, which has no limit.',
+      t(
+        'That design is too big for the link store. Save it to a file instead, which has no limit.',
+      ),
     );
   }
   if (!res.ok) {
     throw new ShareStoreError(
-      'The link store would not take this design. Saving it to a file works either way.',
+      t(
+        'The link store would not take this design. Saving it to a file works either way.',
+      ),
     );
   }
 
@@ -182,7 +191,7 @@ export async function storeTopology(
       : null;
   if (id === null)
     throw new ShareStoreError(
-      'The link could not be made. Try again, or save the design to a file.',
+      t('The link could not be made. Try again, or save the design to a file.'),
     );
 
   const url = new URL(base);
@@ -217,8 +226,9 @@ export async function fetchStored(search: string, hash: string): Promise<ShareRe
   const h = hash.startsWith('#') ? hash.slice(1) : hash;
   if (id === null || !h.startsWith(KEY_PREFIX)) return { status: 'absent' };
 
-  const bad =
-    'That shared link could not be read, so your own design was opened instead.';
+  const bad = t(
+    'That shared link could not be read, so your own design was opened instead.',
+  );
   if (!hasStore()) return { status: 'invalid', message: bad };
 
   const key = fromBase64Url(h.slice(KEY_PREFIX.length));
@@ -232,7 +242,9 @@ export async function fetchStored(search: string, hash: string): Promise<ShareRe
   } catch {
     return {
       status: 'invalid',
-      message: 'Could not reach the link store, so your own design was opened instead.',
+      message: t(
+        'Could not reach the link store, so your own design was opened instead.',
+      ),
     };
   }
   if (!res.ok) return { status: 'invalid', message: bad };

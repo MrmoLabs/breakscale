@@ -1,5 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { EDGE_OUTCOME_SLOTS } from '../sim/edgeOutcomes';
+import { t } from '../i18n';
 import { EDGE_RADIUS, type Pt } from './edgeRoute';
 import {
   DOT_CUT,
@@ -574,7 +575,7 @@ export function TrafficKey({ mode }: TrafficKeyProps) {
           <circle className="cv-key-dot is-ok" cx="3" cy="6" r="2.5" />
           <circle className="cv-key-dot is-fail" cx="9" cy="6" r="2.5" />
         </svg>
-        <span>{open ? 'Hide key' : 'Key'}</span>
+        <span>{open ? t('Hide key') : t('Key')}</span>
       </button>
       {open && (
         <div id="cv-key-body" className="cv-key-body">
@@ -606,14 +607,14 @@ export function TrafficKey({ mode }: TrafficKeyProps) {
                     />
                   )}
                 </svg>
-                {row.text}
+                {t(row.text)}
               </li>
             ))}
           </ul>
           <p className="cv-key-scale">
             {mode === 'still'
-              ? 'Each bar shows how calls on that connection ended.'
-              : 'Busier connections carry more dots. Zoom in for the exact rate.'}
+              ? t('Each bar shows how calls on that connection ended.')
+              : t('Busier connections carry more dots. Zoom in for the exact rate.')}
           </p>
         </div>
       )}

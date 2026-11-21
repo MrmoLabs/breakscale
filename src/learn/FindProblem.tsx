@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { ScanSearch, X } from 'lucide-react';
 import type { SimSnapshot, Topology } from '../sim/types';
+import { t } from '../i18n';
+import { displayLabel } from '../i18n/display';
 import { findBottleneck, type Verdict } from './bottleneck';
 import type { Finding } from './finding';
 import './FindProblem.css';
@@ -19,18 +21,30 @@ interface FindProblemProps {
 function headline(v: Verdict, topology: Topology): string {
   switch (v.kind) {
     case 'problem':
-      return `${nameOf(topology, v.nodeId)} is holding things back`;
+      return t('{name} is holding things back', {
+        name: shownName(topology, v.nodeId),
+      });
     case 'on-purpose':
-      return 'Working as designed';
+      return t('Working as designed');
     case 'healthy':
-      return 'Running fine';
+      return t('Running fine');
     case 'idle':
-      return 'No traffic yet';
+      return t('No traffic yet');
   }
 }
 
 function nameOf(topology: Topology, id: string): string {
   return topology.nodes.find((n) => n.id === id)?.label ?? 'it';
+}
+
+/**
+ * The name as a sentence shows it: the stored label is design data and stays
+ * English; the name inside '{name} is holding things back' and friends is
+ * rendered text. (withoutName strips the RAW name's prefix from the verdict's
+ * own text, so that one stays raw on purpose.)
+ */
+function shownName(topology: Topology, id: string): string {
+  return displayLabel(nameOf(topology, id));
 }
 
 /**
@@ -40,15 +54,24 @@ function nameOf(topology: Topology, id: string): string {
  */
 function withoutName(v: Verdict, topology: Topology): string {
   if (v.kind !== 'problem') return v.text;
-  const prefix = `${nameOf(topology, v.nodeId)}: `;
-  if (!v.text.startsWith(prefix)) return v.text;
-  const rest = v.text.slice(prefix.length);
-  return rest.charAt(0).toUpperCase() + rest.slice(1);
+  const raw = nameOf(topology, v.nodeId);
+  const prefix = `${raw}: `;
+  if (v.text.startsWith(prefix)) {
+    const rest = v.text.slice(prefix.length);
+    return rest.charAt(0).toUpperCase() + rest.slice(1);
+  }
+  // In Chinese the verdict names the part through displayLabel with a
+  // full-width colon; strip that form the same way.
+  const zhPrefix = `${displayLabel(raw)}：`;
+  if (v.text.startsWith(zhPrefix)) return v.text.slice(zhPrefix.length);
+  return v.text;
 }
 
 /** Split after a full stop and a space, so "1.5 a second" stays whole. */
 function sentences(text: string): string[] {
-  return text.split(/(?<=\.)\s+/).filter((s) => s.length > 0);
+  // Chinese sentences end with '。' and carry no space after, so they split
+  // on the full stop alone. English text never holds a '。'.
+  return text.split(/(?<=\.)\s+|(?<=。)\s*/).filter((s) => s.length > 0);
 }
 
 /**
@@ -125,10 +148,10 @@ export function FindProblem({
         className="btn btn-sm fp-trigger"
         onClick={find}
         disabled={!snapshot}
-        title="Find what is holding the system back"
+        title={t('Find what is holding the system back')}
       >
         <ScanSearch size={16} strokeWidth={2} aria-hidden="true" />
-        Find the problem
+        {t('Find the problem')}
       </button>
       {/* Always in the accessibility tree, so a screen reader hears each new
           answer. Keyed by the time it was read, so a second press with the
@@ -152,8 +175,8 @@ export function FindProblem({
             <button
               type="button"
               className="btn btn-sm btn-ghost btn-icon fp-close"
-              aria-label="Close"
-              title="Close (Esc)"
+              aria-label={t('Close')}
+              title={t('Close (Esc)')}
               onClick={close}
             >
               <X size={16} strokeWidth={2} aria-hidden="true" />
@@ -170,7 +193,7 @@ export function FindProblem({
                 className="btn btn-sm"
                 onClick={() => onSelect(target)}
               >
-                Select {nameOf(topology, target)}
+                {t('Select {name}', { name: shownName(topology, target) })}
               </button>
             </div>
           ) : null}

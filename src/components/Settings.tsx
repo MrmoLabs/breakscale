@@ -7,8 +7,9 @@ import {
   togglePreference,
   usePreferences,
 } from '../content/preferences';
-import type { Preferences, ThemeChoice } from '../content/preferences';
+import type { Preferences, ThemeChoice, LanguageChoice } from '../content/preferences';
 import { resolveSystemTheme } from '../theme/applyTheme';
+import { t, getLocale } from '../i18n';
 import { VENDORS } from '../content/vendors';
 import './Settings.css';
 import { CloseButton } from './CloseButton';
@@ -34,9 +35,9 @@ import { trapTab } from './trapTab';
    ========================================================================== */
 
 interface ToggleRow {
-  /* Only the boolean preferences. Theme and vendor are choices among
-     several values and get their own controls below. */
-  key: keyof Omit<Preferences, 'theme' | 'vendor'>;
+  /* Only the boolean preferences. Theme, language and vendor are choices
+     among several values and get their own controls below. */
+  key: keyof Omit<Preferences, 'theme' | 'vendor' | 'language'>;
   label: string;
   /** What turning it on actually does, in the reader's terms. */
   hint: string;
@@ -55,32 +56,38 @@ function toggles(coarse: boolean): ToggleRow[] {
   return [
     {
       key: 'tooltips',
-      label: 'Explain metric names',
+      label: t('Explain metric names'),
       hint: coarse
-        ? 'Tap a term like p99 to see what it means.'
-        : 'Show what terms like p99 mean on hover.',
+        ? t('Tap a term like p99 to see what it means.')
+        : t('Show what terms like p99 mean on hover.'),
     },
     {
       key: 'sparklines',
-      label: 'Trend lines on components',
-      hint: 'Draw the recent history of each component on its box.',
+      label: t('Trend lines on components'),
+      hint: t('Draw the recent history of each component on its box.'),
     },
     {
       key: 'snapToGrid',
-      label: 'Snap to the grid',
+      label: t('Snap to the grid'),
       hint: coarse
-        ? 'Keep components aligned while dragging.'
-        : 'Keep components aligned while dragging. G toggles it, and holding Ctrl bypasses it for one drag.',
+        ? t('Keep components aligned while dragging.')
+        : t(
+            'Keep components aligned while dragging. G toggles it, and holding Ctrl bypasses it for one drag.',
+          ),
     },
     {
       key: 'minimap',
-      label: 'Minimap',
-      hint: 'A small map of the whole diagram, for finding your way around a big one.',
+      label: t('Minimap'),
+      hint: t(
+        'A small map of the whole diagram, for finding your way around a big one.',
+      ),
     },
     {
       key: 'trafficDots',
-      label: 'Show requests moving along connections',
-      hint: 'Busier connections carry more dots. The colours show whether calls got through, failed, were lost or were turned away, and a ring marks a call tried again.',
+      label: t('Show requests moving along connections'),
+      hint: t(
+        'Busier connections carry more dots. The colours show whether calls got through, failed, were lost or were turned away, and a ring marks a call tried again.',
+      ),
     },
   ];
 }
@@ -88,6 +95,15 @@ function toggles(coarse: boolean): ToggleRow[] {
 const THEMES: Array<{ value: ThemeChoice; label: string }> = [
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
+  { value: 'system', label: 'System' },
+];
+
+/* The language picker renders each option in its own name (a reader looking
+   for their language scans for the word they know, not ours), except the
+   `system` choice, which follows the theme control's wording. */
+const LANGUAGES: Array<{ value: LanguageChoice; label: string }> = [
+  { value: 'en', label: 'English' },
+  { value: 'zh', label: '简体中文' },
   { value: 'system', label: 'System' },
 ];
 
@@ -200,14 +216,52 @@ export function Settings({
       >
         <div className="st-head">
           <h2 id="st-title" className="st-title">
-            Settings
+            {t('Settings')}
           </h2>
           <CloseButton onClick={onClose} />
         </div>
 
         <div className="st-body">
           <section className="st-group">
-            <h3 className="st-group-title">Appearance</h3>
+            <h3 className="st-group-title">{t('Language')}</h3>
+            {/*
+              Same shape as the theme picker: three states, and `system`
+              defers to the browser. The options render in their own names.
+            */}
+            <div
+              className="st-choices"
+              role="radiogroup"
+              aria-labelledby="st-language-label"
+            >
+              <span id="st-language-label" className="st-row-label">
+                {t('Interface language')}
+              </span>
+              <div className="st-segmented">
+                {LANGUAGES.map((lang) => (
+                  <button
+                    key={lang.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={prefs.language === lang.value}
+                    className={`st-seg${prefs.language === lang.value ? ' is-active' : ''}`}
+                    onClick={() => setPreference('language', lang.value)}
+                  >
+                    {lang.value === 'system' ? t(lang.label) : lang.label}
+                  </button>
+                ))}
+              </div>
+              <p className="st-hint">
+                {prefs.language === 'system'
+                  ? getLocale() === 'zh'
+                    ? t('Following your browser, which is set to Chinese.')
+                    : t('Following your browser, which is set to English.')
+                  : t('Kept across visits, whatever your browser is set to.')}
+              </p>
+            </div>
+          </section>
+
+          <section className="st-group">
+            <h3 className="st-group-title">{t('Appearance')}</h3>
             {/*
               A radiogroup rather than a switch, because there are three
               states and one of them ("System") is not the absence of a
@@ -219,42 +273,45 @@ export function Settings({
               aria-labelledby="st-theme-label"
             >
               <span id="st-theme-label" className="st-row-label">
-                Theme
+                {t('Theme')}
               </span>
               <div className="st-segmented">
-                {THEMES.map((t) => (
+                {THEMES.map((th) => (
                   <button
-                    key={t.value}
+                    key={th.value}
                     type="button"
                     role="radio"
-                    aria-checked={prefs.theme === t.value}
-                    className={`st-seg${prefs.theme === t.value ? ' is-active' : ''}`}
-                    onClick={() => setPreference('theme', t.value)}
+                    aria-checked={prefs.theme === th.value}
+                    className={`st-seg${prefs.theme === th.value ? ' is-active' : ''}`}
+                    onClick={() => setPreference('theme', th.value)}
                   >
-                    {t.label}
+                    {t(th.label)}
                   </button>
                 ))}
               </div>
               <p className="st-hint">
                 {prefs.theme === 'system'
-                  ? `Following your device, which is currently ${resolveSystemTheme()}.`
-                  : 'Kept across visits, whatever your device is set to.'}
+                  ? t('Following your device, which is currently {theme}.', {
+                      theme: t(resolveSystemTheme() === 'dark' ? 'dark' : 'light'),
+                    })
+                  : t('Kept across visits, whatever your device is set to.')}
               </p>
             </div>
           </section>
 
           {(onExport || onImport || onCopyLink) && (
             <section className="st-group">
-              <h3 className="st-group-title">Your design</h3>
+              <h3 className="st-group-title">{t('Your design')}</h3>
               <div className="st-actions">
                 {onCopyLink && (
                   <button type="button" className="st-action" onClick={onCopyLink}>
                     <Glyph d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5" />
                     <span className="st-action-text">
-                      <span className="st-row-label">Share a link</span>
+                      <span className="st-row-label">{t('Share a link')}</span>
                       <span className="st-hint">
-                        Encrypted in your browser first, so the store cannot read it.
-                        Nobody needs an account.
+                        {t(
+                          'Encrypted in your browser first, so the store cannot read it. Nobody needs an account.',
+                        )}
                       </span>
                     </span>
                   </button>
@@ -263,9 +320,9 @@ export function Settings({
                   <button type="button" className="st-action" onClick={onExport}>
                     <Glyph d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
                     <span className="st-action-text">
-                      <span className="st-row-label">Save to a file</span>
+                      <span className="st-row-label">{t('Save to a file')}</span>
                       <span className="st-hint">
-                        Downloads the whole design, notes and all.
+                        {t('Downloads the whole design, notes and all.')}
                       </span>
                     </span>
                   </button>
@@ -276,11 +333,11 @@ export function Settings({
                     className="st-action"
                     onClick={() => onExportImage('png')}
                   >
-                    <Glyph d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3M21 15l-5-5L5 21" />
+                    <Glyph d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 1 0 0 3M21 15l-5-5L5 21" />
                     <span className="st-action-text">
-                      <span className="st-row-label">Save as a picture</span>
+                      <span className="st-row-label">{t('Save as a picture')}</span>
                       <span className="st-hint">
-                        A PNG of the whole diagram, for a slide or a report.
+                        {t('A PNG of the whole diagram, for a slide or a report.')}
                       </span>
                     </span>
                   </button>
@@ -293,9 +350,9 @@ export function Settings({
                   >
                     <Glyph d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM8 15l2-3 2 2 2-4 3 5" />
                     <span className="st-action-text">
-                      <span className="st-row-label">Save as an SVG</span>
+                      <span className="st-row-label">{t('Save as an SVG')}</span>
                       <span className="st-hint">
-                        Stays sharp at any size, and the text is still text.
+                        {t('Stays sharp at any size, and the text is still text.')}
                       </span>
                     </span>
                   </button>
@@ -304,11 +361,11 @@ export function Settings({
                   <button type="button" className="st-action" onClick={onImport}>
                     <Glyph d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
                     <span className="st-action-text">
-                      <span className="st-row-label">Open a file</span>
+                      <span className="st-row-label">{t('Open a file')}</span>
                       <span className="st-hint">
                         {coarse
-                          ? 'A design you saved from Breakscale.'
-                          : 'Or drop one straight onto the canvas.'}
+                          ? t('A design you saved from Breakscale.')
+                          : t('Or drop one straight onto the canvas.')}
                       </span>
                     </span>
                   </button>
@@ -319,17 +376,17 @@ export function Settings({
 
           {(onBackup || onRestore) && (
             <section className="st-group">
-              <h3 className="st-group-title">This browser</h3>
+              <h3 className="st-group-title">{t('This browser')}</h3>
               <div className="st-actions">
                 {onBackup && (
                   <button type="button" className="st-action" onClick={onBackup}>
                     <Glyph d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
                     <span className="st-action-text">
-                      <span className="st-row-label">Download everything</span>
+                      <span className="st-row-label">{t('Download everything')}</span>
                       <span className="st-hint">
-                        One file with every saved design, your settings and the canvas
-                        you have open. This is how you move to another browser or
-                        machine.
+                        {t(
+                          'One file with every saved design, your settings and the canvas you have open. This is how you move to another browser or machine.',
+                        )}
                       </span>
                     </span>
                   </button>
@@ -338,10 +395,11 @@ export function Settings({
                   <button type="button" className="st-action" onClick={onRestore}>
                     <Glyph d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
                     <span className="st-action-text">
-                      <span className="st-row-label">Restore from a file</span>
+                      <span className="st-row-label">{t('Restore from a file')}</span>
                       <span className="st-hint">
-                        Replaces what this browser holds with the contents of a
-                        downloaded file.
+                        {t(
+                          'Replaces what this browser holds with the contents of a downloaded file.',
+                        )}
                       </span>
                     </span>
                   </button>
@@ -351,14 +409,14 @@ export function Settings({
           )}
 
           <section className="st-group">
-            <h3 className="st-group-title">Naming</h3>
+            <h3 className="st-group-title">{t('Naming')}</h3>
             <div
               className="st-choices"
               role="radiogroup"
               aria-labelledby="st-vendor-label"
             >
               <span id="st-vendor-label" className="st-row-label">
-                Component names
+                {t('Component names')}
               </span>
               <div className="st-segmented st-segmented-4">
                 {VENDORS.map((v) => (
@@ -370,20 +428,24 @@ export function Settings({
                     className={`st-seg st-seg-4${prefs.vendor === v.id ? ' is-active-4' : ''}`}
                     onClick={() => setPreference('vendor', v.id)}
                   >
-                    {v.label}
+                    {t(v.label)}
                   </button>
                 ))}
               </div>
               <p className="st-hint">
                 {prefs.vendor === 'generic'
-                  ? 'Components keep their plain names. Learn the idea first; the product names are easier afterwards.'
-                  : 'Components are named after this vendor’s products, and you can pick a real instance size. The published specs are cited; how they map to capacity is our own estimate.'}
+                  ? t(
+                      'Components keep their plain names. Learn the idea first; the product names are easier afterwards.',
+                    )
+                  : t(
+                      'Components are named after this vendor’s products, and you can pick a real instance size. The published specs are cited; how they map to capacity is our own estimate.',
+                    )}
               </p>
             </div>
           </section>
 
           <section className="st-group">
-            <h3 className="st-group-title">Canvas</h3>
+            <h3 className="st-group-title">{t('Canvas')}</h3>
             {rows.map((row) => (
               <div key={row.key} className="st-row">
                 <button

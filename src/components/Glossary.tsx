@@ -4,11 +4,12 @@ import {
   CATEGORY_LABEL,
   GLOSSARY,
   GLOSSARY_BY_ID,
-  searchGlossary,
   type GlossaryCategory,
   type GlossaryEntry,
 } from '../content/glossary';
+import { glossaryCopy, searchGlossaryCopy } from '../i18n/content/glossary';
 import { closeTooltip } from './Tooltip';
+import { t, getLocale } from '../i18n';
 import { usePresence } from './presence';
 import { isCoarsePointer } from '../useCoarsePointer';
 import './Glossary.css';
@@ -123,7 +124,12 @@ export function Glossary({ open, onClose, focusId }: GlossaryProps) {
   /** Whatever had focus before the sheet opened, so it can be given back. */
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
-  const results = useMemo(() => searchGlossary(query), [query]);
+  // Ranked in the reader's language: Chinese queries match the translated
+  // definitions and aliases, English ones still match the original text.
+  // The locale is a dependency too, so switching language while the sheet is
+  // open re-ranks the same query instead of serving the old language's list.
+  const locale = getLocale();
+  const results = useMemo(() => searchGlossaryCopy(query), [query, locale]);
   const sections = useMemo(() => group(results), [results]);
   /** Flat, in the order the sections actually render, for arrow navigation. */
   const ordered = useMemo(() => sections.flatMap((s) => s.entries), [sections]);
@@ -354,13 +360,13 @@ export function Glossary({ open, onClose, focusId }: GlossaryProps) {
         <div className="gl-head">
           <div className="gl-head-row">
             <h2 id="gl-title" className="gl-title">
-              Glossary
+              {t('Glossary')}
             </h2>
             <CloseButton onClick={onClose} />
           </div>
 
           <p className="gl-sub">
-            Every term this app puts on screen, and why it matters.
+            {t('Every term this app puts on screen, and why it matters.')}
           </p>
 
           <div className="gl-search">
@@ -382,7 +388,7 @@ export function Glossary({ open, onClose, focusId }: GlossaryProps) {
               ref={searchRef}
               type="text"
               className="gl-search-input"
-              placeholder="Search terms"
+              placeholder={t('Search terms')}
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
@@ -392,7 +398,7 @@ export function Glossary({ open, onClose, focusId }: GlossaryProps) {
               }}
               /* A search field, not a combobox: results are a document that
                  stays on screen, not a transient popup listbox. */
-              aria-label="Search glossary terms"
+              aria-label={t('Search glossary terms')}
               aria-describedby="gl-count"
               autoComplete="off"
               spellCheck={false}
@@ -406,7 +412,7 @@ export function Glossary({ open, onClose, focusId }: GlossaryProps) {
                   setActiveId(null);
                   searchRef.current?.focus();
                 }}
-                aria-label="Clear search"
+                aria-label={t('Clear search')}
               >
                 <svg
                   width="14"
@@ -431,22 +437,24 @@ export function Glossary({ open, onClose, focusId }: GlossaryProps) {
           */}
           <p id="gl-count" className="gl-count" aria-live="polite">
             {query
-              ? `${shown} of ${total} ${shown === 1 ? 'term' : 'terms'}`
-              : `${total} terms`}
+              ? shown === 1
+                ? t('{shown} of {total} term', { shown, total })
+                : t('{shown} of {total} terms', { shown, total })
+              : t('{total} terms', { total })}
           </p>
         </div>
 
         <div ref={listRef} className="gl-list scroll">
           {shown === 0 ? (
             <div className="empty">
-              <p>No term matches “{query}”.</p>
-              <p>Try a shorter word, or clear the search to browse them all.</p>
+              <p>{t('No term matches “{query}”.', { query })}</p>
+              <p>{t('Try a shorter word, or clear the search to browse them all.')}</p>
             </div>
           ) : (
             sections.map((section) => (
               <section key={section.category} className="gl-section">
                 <h3 className="label gl-section-title">
-                  {CATEGORY_LABEL[section.category]}
+                  {t(CATEGORY_LABEL[section.category])}
                 </h3>
                 <ul className="gl-entries">
                   {section.entries.map((entry) => (
@@ -483,6 +491,10 @@ interface EntryProps {
 }
 
 function Entry({ entry, active, landed, onSelect, onNavigate }: EntryProps) {
+  // The term stays as-is (the field's shared vocabulary); the definition,
+  // the beginner card and the paragraph follow the locale. `see` and `id`
+  // are anchors, so they read from the raw entry.
+  const copy = glossaryCopy(entry);
   const see = (entry.see ?? [])
     .map((id) => GLOSSARY_BY_ID.get(id))
     .filter((e): e is GlossaryEntry => e !== undefined);
@@ -496,28 +508,28 @@ function Entry({ entry, active, landed, onSelect, onNavigate }: EntryProps) {
       onClick={() => onSelect(entry.id)}
     >
       <h4 className="gl-term">{entry.term}</h4>
-      <p className="gl-short">{entry.short}</p>
-      {entry.intro ? (
+      <p className="gl-short">{copy.short}</p>
+      {copy.intro ? (
         <dl className="gl-intro">
           <div className="gl-intro-row">
-            <dt>What it is</dt>
-            <dd>{entry.intro.what}</dd>
+            <dt>{t('What it is')}</dt>
+            <dd>{copy.intro.what}</dd>
           </div>
           <div className="gl-intro-row">
-            <dt>Real example</dt>
-            <dd>{entry.intro.example}</dd>
+            <dt>{t('Real example')}</dt>
+            <dd>{copy.intro.example}</dd>
           </div>
           <div className="gl-intro-row">
-            <dt>When to use it</dt>
-            <dd>{entry.intro.useWhen}</dd>
+            <dt>{t('When to use it')}</dt>
+            <dd>{copy.intro.useWhen}</dd>
           </div>
         </dl>
       ) : null}
-      <p className="gl-why">{entry.why}</p>
+      <p className="gl-why">{copy.why}</p>
 
       {see.length > 0 ? (
         <p className="gl-see">
-          <span className="gl-see-label">See also</span>
+          <span className="gl-see-label">{t('See also')}</span>
           {see.map((other) => (
             <button
               key={other.id}

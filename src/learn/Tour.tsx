@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { SimSnapshot, Topology } from '../sim/types';
+import { t } from '../i18n';
+import { displayLabel } from '../i18n/display';
 import { toneClass } from '../components/format';
 import { MIN_RATE } from './bottleneck';
 import {
@@ -34,7 +36,12 @@ const SETTLE_MS = 4000;
 /** The field step 3 points at, found by its label as the student reads it. */
 const SLOTS_LABEL = 'Slots per instance';
 
-/** The control a stage points at, or null. Read from the DOM: it belongs to other components. */
+/**
+ * The control a stage points at, or null. Read from the DOM: it belongs to
+ * other components. The label comparison goes through t() on both sides: the
+ * inspector renders its field labels translated, so in Chinese the step's
+ * English field name must be translated before it is matched.
+ */
 function targetFor(kind: string, fieldShown: boolean): Element | null {
   if (kind === 'load') {
     // On a phone the load block is `display: contents` and draws no box; the
@@ -46,7 +53,7 @@ function targetFor(kind: string, fieldShown: boolean): Element | null {
   }
   if (kind !== 'fix' || !fieldShown) return null;
   for (const label of document.querySelectorAll('.ins label.row-k')) {
-    if (label.textContent?.trim() === SLOTS_LABEL) {
+    if (label.textContent?.trim() === t(SLOTS_LABEL)) {
       return label.closest('.ins-field-row, .ins-field');
     }
   }
@@ -95,7 +102,13 @@ export function Tour({
       card.focus({ preventScroll: true });
       setSaid('');
     } else if (!firstStep.current) {
-      setSaid(`Tour step ${step} of ${STEP_COUNT}: ${titleRef.current}`);
+      setSaid(
+        t('Tour step {n} of {total}: {title}', {
+          n: step,
+          total: STEP_COUNT,
+          title: titleRef.current,
+        }),
+      );
     }
     firstStep.current = false;
   }, [step]);
@@ -121,9 +134,11 @@ export function Tour({
     [],
   );
 
+  // The name inside the tour's sentences: the stored label stays English,
+  // the spoken form follows the locale (display.ts).
   const label =
     subject !== null
-      ? (topology.nodes.find((n) => n.id === subject)?.label ?? 'It')
+      ? displayLabel(topology.nodes.find((n) => n.id === subject)?.label ?? 'It')
       : null;
   const figures =
     subject !== null && snapshot ? tourFigures(topology, snapshot, subject) : [];
@@ -138,11 +153,13 @@ export function Tour({
 
   switch (stage.kind) {
     case 'load':
-      title = 'Break it on purpose';
+      title = t('Break it on purpose');
       body = (
         <p>
-          This slider sets how many requests your users send each second. Drag it up to
-          about {TOUR_RPS} and watch what happens.
+          {t(
+            'This slider sets how many requests your users send each second. Drag it up to about {n} and watch what happens.',
+            { n: TOUR_RPS },
+          )}
         </p>
       );
       actions =
@@ -152,7 +169,7 @@ export function Tour({
             className="btn btn-sm btn-primary"
             onClick={() => onSetLoad(TOUR_RPS)}
           >
-            Set it to {TOUR_RPS}
+            {t('Set it to {n}', { n: TOUR_RPS })}
           </button>
         ) : null;
       break;
@@ -160,15 +177,16 @@ export function Tour({
       // Refused work never waits, so "every request" is only true without it.
       const refusing =
         (snapshot ? readingOf(topology, snapshot, stage.nodeId)?.r.refused : 0) ?? 0;
-      title = `${label ?? 'It'} filled up`;
+      title = t('{name} filled up', { name: label ?? t('It') });
       body =
         refusing >= MIN_RATE ? (
           <p>
-            Requests now wait in line for a free slot. Once the line is full, the rest
-            are turned away.
+            {t(
+              'Requests now wait in line for a free slot. Once the line is full, the rest are turned away.',
+            )}
           </p>
         ) : (
-          <p>Every request now waits its turn in line for a free slot.</p>
+          <p>{t('Every request now waits its turn in line for a free slot.')}</p>
         );
       shown = pick('slots', 'waiting', 'refused', 'p99', 'failing');
       actions = (
@@ -177,7 +195,7 @@ export function Tour({
           className="btn btn-sm btn-primary"
           onClick={() => onSelect(stage.nodeId)}
         >
-          Show me the fix
+          {t('Show me the fix')}
         </button>
       );
       break;
@@ -186,23 +204,29 @@ export function Tour({
       const now = totalSlots(topology, stage.nodeId);
       const cfg = topology.nodes.find((n) => n.id === stage.nodeId)?.config;
       const at = snapshot ? readingOf(topology, snapshot, stage.nodeId) : null;
-      title = 'Give it more room';
+      title = t('Give it more room');
       if (!fieldShown) {
-        body = <p>Select {label} to see its settings.</p>;
+        body = (
+          <p>{t('Select {name} to see its settings.', { name: label ?? t('It') })}</p>
+        );
         actions = (
           <button
             type="button"
             className="btn btn-sm btn-primary"
             onClick={() => onSelect(stage.nodeId)}
           >
-            Select {label}
+            {t('Select {name}', { name: label ?? t('It') })}
           </button>
         );
       } else if (now <= stage.slots) {
         body = (
           <p>
-            Each slot is one request {label} can work on at once. Raise {SLOTS_LABEL}{' '}
-            from <span className="num">{cfg?.capacity ?? 0}</span> to{' '}
+            {t(
+              'Each slot is one request {name} can work on at once. Raise {field} from',
+              { name: label ?? t('It'), field: t(SLOTS_LABEL) },
+            )}{' '}
+            <span className="num">{cfg?.capacity ?? 0}</span>
+            {t(' to ')}
             <span className="num">{(cfg?.capacity ?? 0) * 2}</span>.
           </p>
         );
@@ -213,30 +237,33 @@ export function Tour({
         body =
           since < SETTLE_MS ? (
             <p>
-              {label} has <span className="num">{now}</span> slots now. Give the line a
-              few seconds to clear.
+              {t('{name} has ', { name: label ?? t('It') })}
+              <span className="num">{now}</span>
+              {t(' slots now. Give the line a few seconds to clear.')}
             </p>
           ) : (
             <p>
-              {label} has <span className="num">{now}</span> slots now, but it is still
-              full at this load. Try more.
+              {t('{name} has ', { name: label ?? t('It') })}
+              <span className="num">{now}</span>
+              {t(' slots now, but it is still full at this load. Try more.')}
             </p>
           );
         shown = pick('slots', 'waiting', 'p99', 'failing');
         actions = null;
       } else {
-        body = <p>That did it. Watch p99 come back down as the line clears.</p>;
+        body = <p>{t('That did it. Watch p99 come back down as the line clears.')}</p>;
         shown = pick('slots', 'waiting', 'p99', 'failing');
         actions = null;
       }
       break;
     }
     case 'fixed': {
-      title = 'Fixed';
+      title = t('Fixed');
       body = (
         <p>
-          That is the whole loop: add load, find what breaks, fix it. The learning path
-          has what to try next.
+          {t(
+            'That is the whole loop: add load, find what breaks, fix it. The learning path has what to try next.',
+          )}
         </p>
       );
       shown = pick('slots', 'waiting', 'p99', 'failing');
@@ -250,10 +277,10 @@ export function Tour({
               onOpenPath();
             }}
           >
-            Open the learning path
+            {t('Open the learning path')}
           </button>
           <button type="button" className="btn btn-sm" onClick={finish}>
-            Done
+            {t('Done')}
           </button>
         </>
       );
@@ -286,7 +313,7 @@ export function Tour({
         <header className="card-float-head">
           <p className="tour-progress">
             <span className="sr-only">
-              Step {step} of {STEP_COUNT}
+              {t('Step {n} of {total}', { n: step, total: STEP_COUNT })}
             </span>
             <span className="tour-dots" aria-hidden="true">
               {Array.from({ length: STEP_COUNT }, (_, i) => (
@@ -305,10 +332,10 @@ export function Tour({
             <button
               type="button"
               className="btn btn-sm btn-ghost"
-              title="Skip the tour (Esc)"
+              title={t('Skip the tour (Esc)')}
               onClick={finish}
             >
-              Skip tour
+              {t('Skip tour')}
             </button>
           )}
         </header>
@@ -321,7 +348,10 @@ export function Tour({
         <div id="tour-body" className="tour-body">
           {body}
           {shown.length > 0 ? (
-            <ul className="tour-figs" aria-label={`${label ?? 'It'} right now`}>
+            <ul
+              className="tour-figs"
+              aria-label={t('{name} right now', { name: label ?? t('It') })}
+            >
               {shown.map((f) => (
                 <li
                   key={f.id}
@@ -333,7 +363,7 @@ export function Tour({
                     {f.value}
                     {f.unit ? <span className="unit">{f.unit}</span> : null}
                   </span>{' '}
-                  <span className="tour-fig-k">{f.label}</span>
+                  <span className="tour-fig-k">{t(f.label)}</span>
                 </li>
               ))}
             </ul>

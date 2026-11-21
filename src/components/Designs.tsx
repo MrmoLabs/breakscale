@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePresence } from './presence';
+import { t, tN } from '../i18n';
 import {
   MAX_NAME,
   MAX_SAVED,
@@ -87,7 +88,7 @@ export function Designs({
     if (!canSave) return;
     const clean = name.trim();
     if (!clean) {
-      setError('Give the design a name first.');
+      setError(t('Give the design a name first.'));
       return;
     }
     onSave(clean);
@@ -127,7 +128,7 @@ export function Designs({
       >
         <div className="dz-head">
           <h2 id="dz-title" className="dz-title">
-            Your designs
+            {t('Your designs')}
           </h2>
           <CloseButton onClick={onClose} />
         </div>
@@ -138,8 +139,8 @@ export function Designs({
             type="text"
             value={name}
             maxLength={MAX_NAME}
-            placeholder="Name this design"
-            aria-label="Design name"
+            placeholder={t('Name this design')}
+            aria-label={t('Design name')}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
               e.stopPropagation();
@@ -160,7 +161,7 @@ export function Designs({
             aria-disabled={canSave ? undefined : true}
             aria-describedby={canSave ? undefined : 'dz-save-hint'}
           >
-            Save
+            {t('Save')}
           </button>
           {onOpenFile && (
             <button
@@ -173,13 +174,13 @@ export function Designs({
                 onClose();
               }}
             >
-              Open a file
+              {t('Open a file')}
             </button>
           )}
         </div>
         {!canSave && (
           <p id="dz-save-hint" className="dz-hint">
-            Add something to the canvas first.
+            {t('Add something to the canvas first.')}
           </p>
         )}
 
@@ -192,8 +193,9 @@ export function Designs({
         <div className="dz-body">
           {items.length === 0 ? (
             <p className="dz-empty">
-              Nothing saved yet. Name what is on the canvas and press Save, and it will
-              wait here for you.
+              {t(
+                'Nothing saved yet. Name what is on the canvas and press Save, and it will wait here for you.',
+              )}
             </p>
           ) : (
             <ul className="dz-list">
@@ -205,7 +207,7 @@ export function Designs({
                       type="text"
                       defaultValue={d.name}
                       maxLength={MAX_NAME}
-                      aria-label={`Rename ${d.name}`}
+                      aria-label={t('Rename {name}', { name: d.name })}
                       autoFocus
                       onKeyDown={(e) => {
                         e.stopPropagation();
@@ -216,7 +218,7 @@ export function Designs({
                         } else if (e.key === 'Enter') {
                           e.preventDefault();
                           if (!renameDesign(d.id, e.currentTarget.value)) {
-                            setError('That name is already taken.');
+                            setError(t('That name is already taken.'));
                           } else {
                             setError(null);
                           }
@@ -237,7 +239,7 @@ export function Designs({
                     >
                       <span className="dz-item-name">{d.name}</span>
                       <span className="dz-item-meta">
-                        {d.nodeCount} component{d.nodeCount === 1 ? '' : 's'} ·{' '}
+                        {tN(d.nodeCount, '1 component', '{n} components')} ·{' '}
                         {savedAgo(d.savedAt)}
                       </span>
                     </button>
@@ -249,7 +251,7 @@ export function Designs({
                       className="btn btn-ghost btn-sm"
                       onClick={() => setRenaming(d.id)}
                     >
-                      Rename
+                      {t('Rename')}
                     </button>
                     <button
                       type="button"
@@ -259,7 +261,7 @@ export function Designs({
                         refresh();
                       }}
                     >
-                      Delete
+                      {t('Delete')}
                     </button>
                   </div>
                 </li>
@@ -273,10 +275,10 @@ export function Designs({
               went somewhere. Nothing here leaves the machine, so clearing
               site data takes these with it and another browser will not see
               them. A file is the way to move one. */}
-          Saved in this browser only, on this computer. Nothing is uploaded. Clearing
-          your browser data will remove them. {items.length} of {MAX_SAVED} used. To
-          keep a design somewhere safer, or open it elsewhere, save it to a file from
-          Settings.
+          {t(
+            'Saved in this browser only, on this computer. Nothing is uploaded. Clearing your browser data will remove them. {used} of {max} used. To keep a design somewhere safer, or open it elsewhere, save it to a file from Settings.',
+            { used: items.length, max: MAX_SAVED },
+          )}
         </footer>
       </div>
     </div>,

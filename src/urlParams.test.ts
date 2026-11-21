@@ -30,6 +30,13 @@ describe('parseBootParams', () => {
     expect(parseBootParams('?theme=sepia', '').theme).toBeNull();
   });
 
+  it('accepts a language from the query or the hash, and rejects an unknown one', () => {
+    expect(parseBootParams('?language=zh', '').language).toBe('zh');
+    expect(parseBootParams('', '#language=en').language).toBe('en');
+    expect(parseBootParams('?language=system', '').language).toBe('system');
+    expect(parseBootParams('?language=fr', '').language).toBeNull();
+  });
+
   it('does not mistake a share hash for parameters', () => {
     expect(parseBootParams('', '#d1.some-share-payload')).toEqual(EMPTY_BOOT_PARAMS);
   });
@@ -54,6 +61,7 @@ describe('parseBootParams', () => {
     ).toEqual({
       presetId: 'load-balanced',
       theme: 'dark',
+      language: null,
       paused: true,
       warmupMs: 3000,
     });

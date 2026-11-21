@@ -14,8 +14,10 @@ import { ShareLinkTooLargeError, buildShareUrl, decodeTopology } from '../../src
 import { fetchStored, hasStoredLink } from '../../src/share/store';
 import { ATTACK_KINDS } from '../../src/sim/breakit';
 import { VERIFY_METRICS } from '../../src/sim/verify';
+import { t, getLocale } from '../../src/i18n';
 import { LOCAL_BREAK, breakDesign } from './breakIt';
 import type { BreakLimits } from './breakIt';
+import { applyLang } from './i18n';
 import { buildTopology } from './design';
 import { DEFAULT_RUN, describeRun, runDesign } from './run';
 // Build outputs, inlined by the bundler so the published server is one
@@ -27,6 +29,17 @@ import widgetHtml from '../dist/widget.html' with { type: 'text' };
 
 const APP_URL = 'https://breakscale.tech/';
 const RESOURCE_URI = 'ui://breakscale/view.html';
+
+/**
+ * Language for the answers. Registered per tool as an optional input; the
+ * environment's BREAKSCALE_LANG is the default when it is left out.
+ */
+const language = z
+  .enum(['en', 'zh'])
+  .optional()
+  .describe(
+    "Language for this tool's answer, 'en' or 'zh' (Simplified Chinese). Default: the server's BREAKSCALE_LANG, or 'en'. 本工具回答使用的语言，默认由服务器环境变量 BREAKSCALE_LANG 决定。",
+  );
 
 /** Loose on purpose: `buildTopology` gives better errors than a schema can. */
 const node = z.looseObject({
@@ -63,6 +76,7 @@ const edge = z.looseObject({
  */
 const design = {
   name: z.string().optional().describe('A short name for the design'),
+  language,
   nodes: z.array(node).optional(),
   edges: z.array(edge).optional(),
   annotations: z.array(z.unknown()).optional(),
@@ -86,9 +100,9 @@ function text(body: string, isError = false): CallToolResult {
 
 function rejected(errors: string[]): CallToolResult {
   return text(
-    'The design was not accepted:\n' +
+    `${t('The design was not accepted:')}\n` +
       errors.map((e) => `- ${e}`).join('\n') +
-      '\nFix these and call again. read_me has the format.',
+      `\n${t('Fix these and call again. read_me has the format.')}`,
     true,
   );
 }
@@ -105,10 +119,21 @@ export function createServer({
     {
       title: 'Read the design format',
       description:
-        'Returns the Breakscale design format that create_view takes: every component, its settings and defaults, how requests route, and how real code maps onto components.',
+        'Returns the Breakscale design format that create_view takes: every component, its settings and defaults, how requests route, and how real code maps onto components. ' +
+        '返回 create_view 所用设计格式的完整参考：每个组件、设置与默认值、请求路由方式，以及真实代码到组件的映射。',
+      inputSchema: z.object({ language }),
       annotations: { title: 'Read the design format', readOnlyHint: true },
     },
-    async (): Promise<CallToolResult> => text(readme as string),
+    async ({ language }): Promise<CallToolResult> => {
+      applyLang(language);
+      // The generated reference stays English (schema identifiers must be
+      // used verbatim); the zh preface is the reader's translation layer.
+      const body =
+        getLocale() === 'zh'
+          ? `${t('READ_ME_ZH_PREFACE')}\n\n---\n\n${readme as string}`
+          : (readme as string);
+      return text(body);
+    },
   );
 
   registerAppTool(
@@ -117,12 +142,14 @@ export function createServer({
     {
       title: 'Show design',
       description:
-        'Shows a system design on a live Breakscale canvas the user can run, load and edit, and simulates it, returning measured latency, throughput and failure numbers and a breakscale.tech link to the design. Takes a design in the format read_me describes.',
+        'Shows a system design on a live Breakscale canvas the user can run, load and edit, and simulates it, returning measured latency, throughput and failure numbers and a breakscale.tech link to the design. Takes a design in the format read_me describes. ' +
+        '把系统设计展示在实时画布上并仿真，返回实测延迟、吞吐与失败数字和 breakscale.tech 链接。',
       inputSchema: z.object(design),
       annotations: { title: 'Show design', readOnlyHint: true },
       _meta: { ui: { resourceUri: RESOURCE_URI } },
     },
     async (args): Promise<CallToolResult> => {
+      applyLang(args.language);
       const built = buildTopology(args);
       if (!built.ok) return rejected(built.errors);
       const { topology } = built;
@@ -135,19 +162,24 @@ export function createServer({
         // behave, and in testing models relayed the link either way.
         lines.push(
           '',
-          `Link to the design, which opens it on breakscale.tech: ${await buildShareUrl(topology, APP_URL)}`,
+          t('Link to the design, which opens it on breakscale.tech: {url}', {
+            url: await buildShareUrl(topology, APP_URL),
+          }),
         );
       } catch (err) {
         if (!(err instanceof ShareLinkTooLargeError)) throw err;
         lines.push(
           '',
-          'The design is too large for a link; use export_design to save it as a file.',
+          t(
+            'The design is too large for a link; use export_design to save it as a file.',
+          ),
         );
       }
       lines.push(
         '',
-        'A changed design can be shown by passing the whole updated design to create_view; keeping the node ids keeps the layout stable. ' +
-          'Edits the user makes on the canvas are reported back as context.',
+        t(
+          'A changed design can be shown by passing the whole updated design to create_view; keeping the node ids keeps the layout stable. Edits the user makes on the canvas are reported back as context.',
+        ),
       );
       // Text only. The view rebuilds the topology from the tool's input
       // rather than reading it from here: some hosts (Claude Code) show the
@@ -162,11 +194,13 @@ export function createServer({
     {
       title: 'Export a design file',
       description:
-        'Returns a design as the text of a .breakscale file, which the Breakscale app and its VS Code extension open with Settings, Open a file. Takes the same input as create_view.',
+        'Returns a design as the text of a .breakscale file, which the Breakscale app and its VS Code extension open with Settings, Open a file. Takes the same input as create_view. ' +
+        '把设计导出为 .breakscale 文件的文本，应用与 VS Code 扩展都能打开。输入与 create_view 相同。',
       inputSchema: z.object(design),
       annotations: { title: 'Export a design file', readOnlyHint: true },
     },
     async (args): Promise<CallToolResult> => {
+      applyLang(args.language);
       const built = buildTopology(args);
       if (!built.ok) return rejected(built.errors);
       return text(buildDesignFile(built.topology, built.name));
@@ -183,7 +217,8 @@ export function createServer({
         'For the correctness goals, doubleCharges, lostAckedWrites and staleReads, it also names the first request that broke the rule and tells its story step by step. ' +
         `Deterministic: the same design, goal and options always give the same answer. Tries at most ${breakLimits.maxBudget} schedules from its budget per call, then plays a few more to make a break smaller. ` +
         'By default it never crashes, fails or cuts a single point of failure whole, except for the correctness goals, which an outage cannot break; includeSinglePoints turns that on. ' +
-        'Takes the same design as create_view, plus the goal.',
+        'Takes the same design as create_view, plus the goal. ' +
+        '搜索能让设计达不到目标的故障组合（宕机、变慢、报错、切断连线），并把组合缩到最小；判定为文字结论，破坏成功时附回放链接。输入与 create_view 相同，外加 goal。',
       inputSchema: z.object({
         ...design,
         // Loose like the design: the search's own checks say what is wrong
@@ -244,12 +279,13 @@ export function createServer({
       annotations: { title: 'Try to break a design', readOnlyHint: true },
     },
     async (args): Promise<CallToolResult> => {
+      applyLang(args.language);
       const built = buildTopology(args);
       if (!built.ok) return rejected(built.errors);
       const out = await breakDesign(built.topology, args, breakLimits, APP_URL);
       if (!out.ok) {
         return text(
-          'The request was not accepted:\n' +
+          `${t('The request was not accepted:')}\n` +
             out.errors.map((e) => `- ${e}`).join('\n'),
           true,
         );
@@ -263,7 +299,8 @@ export function createServer({
     {
       title: 'Open a share link',
       description:
-        'Reads a Breakscale share link (a breakscale.tech URL) and returns the design in it, in the format create_view takes.',
+        'Reads a Breakscale share link (a breakscale.tech URL) and returns the design in it, in the format create_view takes. ' +
+        '读取 Breakscale 分享链接并返回其中的设计，格式与 create_view 相同。',
       inputSchema: z.object({ link: z.string().describe('The whole share link') }),
       annotations: {
         title: 'Open a share link',
@@ -276,13 +313,13 @@ export function createServer({
       try {
         url = new URL(link);
       } catch {
-        return text('That is not a URL.', true);
+        return text(t('That is not a URL.'), true);
       }
       const result = hasStoredLink(url.search, url.hash)
         ? await fetchStored(url.search, url.hash)
         : await decodeTopology(url.hash);
       if (result.status === 'absent') {
-        return text('That link does not carry a Breakscale design.', true);
+        return text(t('That link does not carry a Breakscale design.'), true);
       }
       if (result.status === 'invalid') return text(result.message, true);
       return text(JSON.stringify(result.topology));

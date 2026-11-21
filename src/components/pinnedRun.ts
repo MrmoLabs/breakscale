@@ -1,4 +1,5 @@
 import type { HistoryPoint, SystemStats } from '../sim/types';
+import { t } from '../i18n';
 import { formatMs, formatPct, formatRate } from './format';
 
 /**
@@ -60,13 +61,17 @@ export function pinRun(
 
 /** "Pinned at 30s, 300/s". */
 export function pinLabel(pin: PinnedRun): string {
-  return `Pinned at ${Math.floor(pin.atMs / 1000)}s, ${formatRate(pin.rps)}`;
+  return t('Pinned at {s}s, {rate}', {
+    s: Math.floor(pin.atMs / 1000),
+    rate: formatRate(pin.rps),
+  });
 }
 
 export type PinTone = 'better' | 'worse' | 'same';
 
 export interface PinRow {
-  name: 'p99' | 'Goodput' | 'Errors';
+  /** The metric's name as the row prints it; the bar renders it directly. */
+  name: string;
   /** Glossary id for the name. */
   term: string;
   then: string;
@@ -76,7 +81,7 @@ export interface PinRow {
 
 /** A p99 as the bar prints it, including its outage wording. */
 function p99Text(p99: number | null, errorRate: number): string {
-  return p99 === null && errorRate > 0 ? 'no replies' : formatMs(p99);
+  return p99 === null && errorRate > 0 ? t('no replies') : formatMs(p99);
 }
 
 /**
@@ -146,7 +151,7 @@ export function compareRows(
 
   return [
     {
-      name: 'p99',
+      name: t('p99'),
       term: 'p99',
       then: p99Then,
       now: p99Live,
@@ -159,7 +164,7 @@ export function compareRows(
       ),
     },
     {
-      name: 'Goodput',
+      name: t('Goodput'),
       term: 'goodput',
       then: gThen,
       now: gNow,
@@ -172,7 +177,7 @@ export function compareRows(
       ),
     },
     {
-      name: 'Errors',
+      name: t('Errors'),
       term: 'error-rate',
       then: eThen,
       now: eNow,

@@ -1,4 +1,6 @@
 import type { NodeKind } from '../sim/types';
+import { getLocale } from '../i18n';
+import { zhSuggestions } from '../i18n/zh/suggestions';
 
 /**
  * Kinds this applies to: exactly the ones with a throughput ceiling (see
@@ -12,8 +14,23 @@ import type { NodeKind } from '../sim/types';
  * of the app's own challenges. Where a kind has no single fix that is
  * obviously right, the suggestion points at the knob that is honestly the
  * most likely lever rather than pretending certainty.
+ *
+ * Like every other display string, the English paragraphs are the source of
+ * truth: suggestionFor returns the translated paragraph from
+ * ../i18n/zh/suggestions.ts when the locale is Chinese and the kind has one,
+ * and the English text otherwise.
  */
 export function suggestionFor(kind: NodeKind): string | null {
+  const en = enSuggestion(kind);
+  if (en === null) return null;
+  if (getLocale() === 'zh') {
+    return zhSuggestions[kind] ?? zhSuggestions.generic ?? en;
+  }
+  return en;
+}
+
+/** The English paragraphs: the source the zh dictionary is keyed against. */
+function enSuggestion(kind: NodeKind): string | null {
   switch (kind) {
     case 'cache':
       // Deliberately NOT "raise the hit rate". The hit/miss roll happens in

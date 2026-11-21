@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Check } from 'lucide-react';
+import { t } from '../i18n';
 import type { Challenge } from '../sim/challenge';
 import type { Preset } from '../sim/presets';
 import type { ChallengeBadge } from '../challengeWorkspace';
 import { LEARNING_PATH, type PathStep } from '../content/learningPath';
+import { pathTrackCopy } from '../i18n/content/path';
 import { usePresence } from '../components/presence';
 import { badgeById, briefIdOf, nextStep, stepName, stepStatus } from './pathProgress';
 import '../components/Examples.css';
@@ -72,13 +74,14 @@ type Verb = 'Start' | 'Continue' | 'Again' | 'Open';
 
 /** The row button's name, read as a sentence: "Do step 1 again, Single server". */
 function labelOf(verb: Verb, n: number | undefined, name: string): string {
+  // Every step on the path has a number; the assertion keeps the old shape.
   switch (verb) {
     case 'Again':
-      return `Do step ${n} again, ${name}`;
+      return t('Do step {n} again, {name}', { n: n!, name });
     case 'Open':
-      return `Open step ${n}, ${name}, passed`;
+      return t('Open step {n}, {name}, passed', { n: n!, name });
     default:
-      return `${verb} step ${n}, ${name}`;
+      return t('{verb} step {n}, {name}', { verb: t(verb), n: n!, name });
   }
 }
 
@@ -120,11 +123,21 @@ export function LearningPath({
   const badge = badgeById(challenges, badgeOf);
   const presetById = new Map(presets.map((p) => [p.id, p]));
   const next = nextStep(explored, badge);
+  /* What renders: the translated tracks when the locale is Chinese, the
+     path itself otherwise. Status, names and opening actions all read ids
+     and kinds, which pass through, so they keep working on the copies; the
+     lone `next` stays raw and is matched onto its copy by kind and id. */
+  const tracks = LEARNING_PATH.map(pathTrackCopy);
+  const copiedNext = next
+    ? (tracks
+        .flatMap((tr) => tr.steps)
+        .find((s) => s.kind === next.kind && s.id === next.id) ?? null)
+    : null;
   /* Numbered through the whole path, not per track, so "step 12" means one
      place. */
   const numberOf = new Map<PathStep, number>();
   let done = 0;
-  for (const track of LEARNING_PATH) {
+  for (const track of tracks) {
     for (const step of track.steps) {
       numberOf.set(step, numberOf.size + 1);
       if (stepStatus(step, explored, badge) === 'done') done += 1;
@@ -179,11 +192,15 @@ export function LearningPath({
   const ruleOf = (step: PathStep): string => {
     switch (step.kind) {
       case 'challenge':
-        return 'It counts as done once you pass it.';
+        return t('It counts as done once you pass it.');
       case 'incident':
-        return 'Watch it happen, then fix it. It counts as done once your fix passes.';
+        return t(
+          'Watch it happen, then fix it. It counts as done once your fix passes.',
+        );
       case 'example':
-        return 'A short task opens with it. It counts as done once you finish the task.';
+        return t(
+          'A short task opens with it. It counts as done once you finish the task.',
+        );
     }
   };
 
@@ -216,17 +233,20 @@ export function LearningPath({
         <div className="ex-head">
           <div>
             <h2 id="lp-title" className="ex-title">
-              Learning path
+              {t('Learning path')}
             </h2>
             <p className="ex-sub">
-              Every example, challenge and real outage, in an order that builds up.
+              {t(
+                'Every example, challenge and real outage, in an order that builds up.',
+              )}
             </p>
             <p className="lp-progress">
-              {done} of {total} done
+              {t('{done} of {total} done', { done, total })}
             </p>
             <p className="lp-rules">
-              An example is done when you finish its task. A challenge or an outage is
-              done when your design passes.
+              {t(
+                'An example is done when you finish its task. A challenge or an outage is done when your design passes.',
+              )}
             </p>
           </div>
           <CloseButton onClick={onClose} />
@@ -235,12 +255,12 @@ export function LearningPath({
         <div className="lp-body">
           {next ? (
             <div className="lp-next">
-              <p className="label lp-next-label">Up next</p>
+              <p className="label lp-next-label">{t('Up next')}</p>
               <p className="lp-next-name">
                 {nameOf(next)}
-                <span className="lp-kind">{KIND_TEXT[next.kind]}</span>
+                <span className="lp-kind">{t(KIND_TEXT[next.kind])}</span>
               </p>
-              <p className="lp-next-learn">{next.learn}</p>
+              <p className="lp-next-learn">{copiedNext?.learn ?? next.learn}</p>
               <p className="lp-next-rule">{ruleOf(next)}</p>
               <div className="lp-next-act">
                 <button
@@ -249,21 +269,24 @@ export function LearningPath({
                   className="btn btn-primary lp-next-open"
                   onClick={() => openStep(next)}
                 >
-                  {verbOf(next)} {nameOf(next)}
+                  {t(verbOf(next))} {nameOf(next)}
                 </button>
                 {isOpenNow(next) ? (
-                  <span className="lp-next-where">It is open behind this dialog.</span>
+                  <span className="lp-next-where">
+                    {t('It is open behind this dialog.')}
+                  </span>
                 ) : null}
               </div>
             </div>
           ) : (
             <p className="lp-next lp-all-done">
-              You have done every step. Try a challenge again without hints, or build a
-              design of your own and break it.
+              {t(
+                'You have done every step. Try a challenge again without hints, or build a design of your own and break it.',
+              )}
             </p>
           )}
 
-          {LEARNING_PATH.map((track) => {
+          {tracks.map((track) => {
             const trackDone = track.steps.filter(
               (s) => stepStatus(s, explored, badge) === 'done',
             ).length;
@@ -278,7 +301,10 @@ export function LearningPath({
                     {track.title}
                   </h3>
                   <span className="lp-num lp-track-count">
-                    {trackDone} of {track.steps.length} done
+                    {t('{done} of {total} done', {
+                      done: trackDone,
+                      total: track.steps.length,
+                    })}
                   </span>
                 </div>
                 <p className="lp-track-about">{track.about}</p>
@@ -292,18 +318,18 @@ export function LearningPath({
                        saying it is done, since that is what Continue acts on;
                        the check mark still says done. */
                     const badgeText = now
-                      ? 'Current'
+                      ? t('Current')
                       : status === 'done'
-                        ? 'Done'
+                        ? t('Done')
                         : status === 'started'
-                          ? 'In progress'
+                          ? t('In progress')
                           : null;
                     return (
                       <li
                         key={step.id}
                         className="lp-step"
                         data-status={status}
-                        data-next={step === next || undefined}
+                        data-next={step === copiedNext || undefined}
                         aria-current={now ? 'step' : undefined}
                       >
                         <span className="lp-mark" aria-hidden="true">
@@ -312,7 +338,7 @@ export function LearningPath({
                         <span className="lp-step-text">
                           <span className="lp-step-name">
                             <span className="lp-step-title">{nameOf(step)}</span>
-                            <span className="lp-kind">{KIND_TEXT[step.kind]}</span>
+                            <span className="lp-kind">{t(KIND_TEXT[step.kind])}</span>
                             {badgeText ? (
                               <span
                                 className="lp-badge"
@@ -330,7 +356,7 @@ export function LearningPath({
                           aria-label={labelOf(verb, n, nameOf(step))}
                           onClick={() => openStep(step)}
                         >
-                          {verb}
+                          {t(verb)}
                         </button>
                       </li>
                     );

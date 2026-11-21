@@ -1,4 +1,5 @@
 import { memo, useMemo } from 'react';
+import { t } from '../i18n';
 import { Term } from './Tooltip';
 import type { RequestTrace } from '../sim/types';
 import './Trace.css';
@@ -56,13 +57,14 @@ export const Trace = memo(function Trace({ trace, nameOf, idleText }: TraceProps
 
   if (!trace || !totals) {
     return (
-      <section className="tr" aria-label="Request trace">
+      <section className="tr" aria-label={t('Request trace')}>
         <header className="mx-head">
-          <span className="label mx-eyebrow">One request</span>
+          <span className="label mx-eyebrow">{t('One request')}</span>
         </header>
         <p className="tr-empty">
-          {idleText ??
-            'Waiting for a request to finish. Press play, or raise the load.'}
+          {idleText != null
+            ? t(idleText)
+            : t('Waiting for a request to finish. Press play, or raise the load.')}
         </p>
       </section>
     );
@@ -74,17 +76,17 @@ export const Trace = memo(function Trace({ trace, nameOf, idleText }: TraceProps
   // bar lengths.
   const verdict =
     queued > service * 1.5
-      ? 'Most of this request was spent waiting, not working.'
+      ? t('Most of this request was spent waiting, not working.')
       : queued < service * 0.25
-        ? 'Almost all of this was real work. Nothing was queueing.'
+        ? t('Almost all of this was real work. Nothing was queueing.')
         : // No advice to raise the load: in a challenge the load is fixed, and
           // a node already near full would make the advice wrong.
-          'Waiting and working are close, so nothing is backed up yet.';
+          t('Waiting and working are close, so nothing is backed up yet.');
 
   return (
-    <section className="tr" aria-label="Request trace">
+    <section className="tr" aria-label={t('Request trace')}>
       <header className="mx-head">
-        <span className="label mx-eyebrow">One request</span>
+        <span className="label mx-eyebrow">{t('One request')}</span>
         <span className="mx-head-right">
           <span className="mx-readout-wrap">
             <span className={`num num-lg mx-readout${trace.ok ? '' : ' is-danger'}`}>
@@ -97,8 +99,8 @@ export const Trace = memo(function Trace({ trace, nameOf, idleText }: TraceProps
 
       {!trace.ok && (
         <p className="tr-failed">
-          This one did not finish: <strong>{trace.reason}</strong>. The hops below are
-          how far it got.
+          {t('This one did not finish:')} <strong>{trace.reason}</strong>
+          {t('. The hops below are how far it got.')}
         </p>
       )}
 
@@ -133,11 +135,11 @@ export const Trace = memo(function Trace({ trace, nameOf, idleText }: TraceProps
       <footer className="tr-foot">
         <span className="tr-key">
           <span className="tr-swatch tr-queued" />
-          <Term id="queue">waiting</Term> {fmt(queued)}ms
+          <Term id="queue">{t('waiting')}</Term> {fmt(queued)}ms
         </span>
         <span className="tr-key">
           <span className="tr-swatch tr-service" />
-          working {fmt(service)}ms
+          {t('working {ms}', { ms: `${fmt(service)}ms` })}
         </span>
       </footer>
       <p className="tr-verdict">{verdict}</p>

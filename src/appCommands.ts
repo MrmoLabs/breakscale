@@ -3,6 +3,7 @@ import type { FailureKind, NodeKind } from './sim/types';
 import type { ThemeChoice } from './content/preferences';
 import { SPEEDS, formatSpeed, type Speed } from './speed';
 import { shortcutLabel } from './modKey';
+import { t } from './i18n';
 
 /* ------------------------------------------------------------------ *
  * Everything the command palette can do, built from what the shell knows.
@@ -92,10 +93,6 @@ export interface CommandActions {
   settings: () => void;
 }
 
-/** Slowing a part in the palette uses the same factor as the menu and the
-    inspector's first press. */
-export const PALETTE_SLOW_LABEL = 'Slow down';
-
 const FAULT_WORD: Record<FailureKind, string> = {
   crash: 'crashed',
   'crash-instance': 'one instance down',
@@ -119,7 +116,7 @@ export function buildCommands(
   /* ---- run ---- */
   push({
     id: 'run.toggle',
-    label: f.running ? 'Pause' : 'Play',
+    label: f.running ? t('Pause') : t('Play'),
     group: 'Run',
     keywords: ['play', 'pause', 'start', 'stop', 'resume'],
     hint: key('Space'),
@@ -127,41 +124,49 @@ export function buildCommands(
   });
   push({
     id: 'run.step',
-    label: 'Step one tick',
+    label: t('Step one tick'),
     group: 'Run',
-    keywords: ['advance'],
+    keywords: ['advance', 'Step one tick'],
     hint: key('S'),
     run: a.step,
   });
   push({
     id: 'run.reset',
-    label: 'Reset the run',
+    label: t('Reset the run'),
     group: 'Run',
-    keywords: ['restart', 'clock', 'zero'],
+    keywords: ['restart', 'clock', 'zero', 'Reset the run'],
     run: a.reset,
   });
   for (const s of SPEEDS) {
     push({
       id: `run.speed.${s}`,
-      label: `Play at ${formatSpeed(s)}`,
+      label: t('Play at {speed}', { speed: formatSpeed(s) }),
       group: 'Run',
-      keywords: ['speed', 'faster', 'slower', 'fast', 'slow motion'],
-      hint: s === f.speed ? 'Now' : undefined,
+      keywords: ['speed', 'faster', 'slower', 'fast', 'slow motion', 'Play at'],
+      hint: s === f.speed ? t('Now') : undefined,
       run: () => a.setSpeed(s),
     });
   }
   push({
     id: 'run.pin',
-    label: f.pinned ? 'Pin this run again' : 'Pin this run',
+    label: f.pinned ? t('Pin this run again') : t('Pin this run'),
     group: 'Run',
-    keywords: ['compare', 'before', 'after', 'baseline', 'snapshot'],
-    ...(f.canPin ? {} : { disabled: 'Nothing measured yet. Let some traffic run.' }),
+    keywords: [
+      'compare',
+      'before',
+      'after',
+      'baseline',
+      'snapshot',
+      'Pin this run',
+      'Pin this run again',
+    ],
+    ...(f.canPin ? {} : { disabled: t('Nothing measured yet. Let some traffic run.') }),
     run: a.pin,
   });
   if (f.pinned) {
     push({
       id: 'run.unpin',
-      label: 'Clear the pinned run',
+      label: t('Clear the pinned run'),
       group: 'Run',
       keywords: ['unpin', 'remove'],
       run: a.clearPin,
@@ -176,9 +181,9 @@ export function buildCommands(
     if (p.fault !== 'crash') {
       push({
         id: `fault.crash.${p.id}`,
-        label: `Crash ${p.label}`,
+        label: t('Crash {name}', { name: p.label }),
         group: 'Faults',
-        keywords: ['break', 'kill', 'fail', 'down'],
+        keywords: ['break', 'kill', 'fail', 'down', 'Crash'],
         searchOnly,
         run: () => a.crash(p.id),
       });
@@ -186,9 +191,9 @@ export function buildCommands(
     if (p.fault === null && p.canSlow) {
       push({
         id: `fault.slow.${p.id}`,
-        label: `${PALETTE_SLOW_LABEL} ${p.label} ${slowFactor}`,
+        label: t('Slow down {name} {factor}', { name: p.label, factor: slowFactor }),
         group: 'Faults',
-        keywords: ['slow', 'latency', 'lag', 'degrade'],
+        keywords: ['slow', 'latency', 'lag', 'degrade', 'Slow down'],
         searchOnly,
         run: () => a.slow(p.id),
       });
@@ -196,9 +201,9 @@ export function buildCommands(
     if (p.fault !== null) {
       push({
         id: `fault.fix.${p.id}`,
-        label: `Fix ${p.label}`,
+        label: t('Fix {name}', { name: p.label }),
         group: 'Faults',
-        keywords: ['repair', 'heal', 'recover', 'restore', FAULT_WORD[p.fault]],
+        keywords: ['repair', 'heal', 'recover', 'restore', FAULT_WORD[p.fault], 'Fix'],
         searchOnly,
         run: () => a.fix(p.id),
       });
@@ -209,8 +214,9 @@ export function buildCommands(
   if (f.canUndo) {
     push({
       id: 'edit.undo',
-      label: 'Undo',
+      label: t('Undo'),
       group: 'View',
+      keywords: ['Undo'],
       hint: key('Ctrl+Z'),
       run: a.undo,
     });
@@ -218,15 +224,16 @@ export function buildCommands(
   if (f.canRedo) {
     push({
       id: 'edit.redo',
-      label: 'Redo',
+      label: t('Redo'),
       group: 'View',
+      keywords: ['Redo'],
       hint: key('Ctrl+Shift+Z'),
       run: a.redo,
     });
   }
   push({
     id: 'view.present',
-    label: f.presenting ? 'Stop presenting' : 'Start presenting',
+    label: f.presenting ? t('Stop presenting') : t('Start presenting'),
     group: 'View',
     keywords: ['present', 'teach', 'projector', 'class', 'big', 'lecture'],
     hint: key('Shift+P'),
@@ -235,7 +242,7 @@ export function buildCommands(
   if (f.canFullscreen) {
     push({
       id: 'view.fullscreen',
-      label: f.fullscreen ? 'Leave full screen' : 'Full screen',
+      label: f.fullscreen ? t('Leave full screen') : t('Full screen'),
       group: 'View',
       keywords: ['fullscreen', 'projector', 'present'],
       run: a.toggleFullscreen,
@@ -243,70 +250,80 @@ export function buildCommands(
   }
   push({
     id: 'view.fit',
-    label: 'Fit the diagram',
+    label: t('Fit the diagram'),
     group: 'View',
-    keywords: ['zoom', 'whole', 'everything', 'center'],
+    keywords: ['zoom', 'whole', 'everything', 'center', 'Fit the diagram'],
     hint: key('Shift+1'),
-    ...(f.empty ? { disabled: 'The diagram is empty.' } : {}),
+    ...(f.empty ? { disabled: t('The diagram is empty.') } : {}),
     run: a.fit,
   });
   push({
     id: 'view.library',
-    label: f.libraryOpen ? 'Hide components' : 'Show components',
+    label: f.libraryOpen ? t('Hide components') : t('Show components'),
     group: 'View',
-    keywords: ['rail', 'palette', 'panel', 'library'],
+    keywords: [
+      'rail',
+      'palette',
+      'panel',
+      'library',
+      'Hide components',
+      'Show components',
+    ],
     hint: key('C'),
-    ...(f.presenting ? { disabled: 'Hidden while presenting.' } : {}),
+    ...(f.presenting ? { disabled: t('Hidden while presenting.') } : {}),
     run: a.toggleLibrary,
   });
   push({
     id: 'view.metrics',
-    label: f.metricsOpen ? 'Hide charts' : 'Show charts',
+    label: f.metricsOpen ? t('Hide charts') : t('Show charts'),
     group: 'View',
-    keywords: ['metrics', 'graphs', 'strip', 'panel'],
+    keywords: ['metrics', 'graphs', 'strip', 'panel', 'Hide charts', 'Show charts'],
     hint: key('M'),
     run: a.toggleMetrics,
   });
   push({
     id: 'view.snap',
-    label: f.snapToGrid ? 'Turn grid snap off' : 'Turn grid snap on',
+    label: f.snapToGrid ? t('Turn grid snap off') : t('Turn grid snap on'),
     group: 'View',
     keywords: ['grid', 'align', 'snap'],
     hint: key('G'),
     run: a.toggleSnap,
   });
+  // The English label stays in scope so it can double as a search keyword:
+  // a Chinese interface must still find the row when the reader types the
+  // English they know.
   const themes: [ThemeChoice, string][] = [
     ['light', 'Use the light theme'],
     ['dark', 'Use the dark theme'],
     ['system', 'Match the system theme'],
   ];
-  for (const [t, label] of themes) {
+  for (const [theme, en] of themes) {
     push({
-      id: `view.theme.${t}`,
-      label,
+      id: `view.theme.${theme}`,
+      label: t(en),
       group: 'View',
-      keywords: ['theme', 'colour', 'color', 'mode', 'appearance'],
-      hint: f.theme === t ? 'Now' : undefined,
-      run: () => a.setTheme(t),
+      keywords: ['theme', 'colour', 'color', 'mode', 'appearance', en],
+      hint: f.theme === theme ? t('Now') : undefined,
+      run: () => a.setTheme(theme),
     });
   }
 
   /* ---- share and test ---- */
   push({
     id: 'share.link',
-    label: 'Share a link to this design',
+    label: t('Share a link to this design'),
     group: 'Share',
     keywords: ['share', 'url', 'copy', 'send'],
     run: a.share,
   });
   push({
     id: 'share.break',
-    label: 'Can you break it?',
+    label: t('Can you break it?'),
     group: 'Share',
     keywords: ['break', 'fault', 'test', 'attack', 'chaos'],
     hint: key('F'),
     ...(f.inChallenge
-      ? { disabled: 'Off during a challenge.' }
+      ? { disabled: t('Off during a challenge.') }
       : f.breakBlocked
         ? { disabled: f.breakBlocked }
         : {}),
@@ -316,56 +333,64 @@ export function buildCommands(
   /* ---- help ---- */
   push({
     id: 'help.examples',
-    label: 'Browse examples',
+    label: t('Browse examples'),
     group: 'Help',
+    keywords: ['Browse examples'],
     run: a.examples,
   });
   push({
     id: 'help.challenges',
-    label: 'Browse challenges',
+    label: t('Browse challenges'),
     group: 'Help',
+    keywords: ['Browse challenges'],
     run: a.challenges,
   });
-  push({ id: 'help.path', label: 'Learning path', group: 'Help', run: a.path });
+  push({
+    id: 'help.path',
+    label: t('Learning path'),
+    group: 'Help',
+    keywords: ['Learning path'],
+    run: a.path,
+  });
   push({
     id: 'help.designs',
-    label: 'Your designs',
+    label: t('Your designs'),
     group: 'Help',
-    keywords: ['saved', 'open', 'files'],
+    keywords: ['saved', 'open', 'files', 'Your designs'],
     run: a.designs,
   });
   push({
     id: 'help.glossary',
-    label: 'Open the glossary',
+    label: t('Open the glossary'),
     group: 'Help',
-    keywords: ['terms', 'definitions', 'words'],
+    keywords: ['terms', 'definitions', 'words', 'Open the glossary'],
     hint: key('?'),
     run: () => a.glossary(),
   });
   if (!f.coarse) {
     push({
       id: 'help.shortcuts',
-      label: 'Keyboard shortcuts',
+      label: t('Keyboard shortcuts'),
       group: 'Help',
-      keywords: ['keys', 'bindings'],
+      keywords: ['keys', 'bindings', 'Keyboard shortcuts'],
       hint: key('Ctrl+/'),
       run: a.shortcuts,
     });
   }
   push({
     id: 'help.settings',
-    label: 'Settings',
+    label: t('Settings'),
     group: 'Help',
-    keywords: ['preferences', 'options', 'tooltips', 'vendor', 'minimap'],
+    keywords: ['preferences', 'options', 'tooltips', 'vendor', 'minimap', 'Settings'],
     run: a.settings,
   });
   /* ---- build and open ---- */
   for (const k of f.kinds) {
     push({
       id: `add.${k.kind}`,
-      label: `Add ${inSentence(k.name)}`,
+      label: t('Add {name}', { name: inSentence(k.name) }),
       group: 'Add',
-      keywords: [k.kind, k.group, 'component', 'new'],
+      keywords: [k.kind, k.group, 'component', 'new', 'Add'],
       run: () => a.add(k.kind),
     });
   }
@@ -395,7 +420,7 @@ export function buildCommands(
       label: i.name,
       group: 'Incident',
       keywords: ['incident', 'outage', 'postmortem', 'real'],
-      ...(f.inChallenge ? { disabled: 'Leave the challenge first.' } : {}),
+      ...(f.inChallenge ? { disabled: t('Leave the challenge first.') } : {}),
       run: () => a.openIncident(i.id),
     });
   }

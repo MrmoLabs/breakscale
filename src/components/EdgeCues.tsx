@@ -3,6 +3,7 @@ import type { CSSProperties, Dispatch, RefObject, SetStateAction } from 'react';
 import type { SimNode } from '../sim/types';
 import { cuePan, overflowOf } from './fit';
 import type { FitView, ScreenBox } from './fit';
+import { t } from '../i18n';
 import './EdgeCues.css';
 
 type Side = 'left' | 'right';
@@ -249,11 +250,11 @@ export function EdgeCues({
                 type="button"
                 className={`btn btn-sm cv-cue is-${side}`}
                 data-chrome="cue"
-                title={TITLE[side]}
+                title={t(TITLE[side])}
                 onClick={() => pan(side)}
               >
                 {side === 'left' ? <Chevron side={side} /> : null}
-                <span className="cv-cue-text">{LABEL[side]}</span>
+                <span className="cv-cue-text">{t(LABEL[side])}</span>
                 {side === 'right' ? <Chevron side={side} /> : null}
               </button>
             ) : null,
@@ -269,8 +270,8 @@ export function EdgeCues({
           className="btn btn-sm btn-icon cv-cue-fit"
           data-chrome="cue"
           style={style}
-          aria-label="Fit the diagram on screen"
-          title="Fit the diagram on screen (Shift+1)"
+          aria-label={t('Fit the diagram on screen')}
+          title={t('Fit the diagram on screen (Shift+1)')}
           onClick={() => {
             handoff.current = { from: 'fit', at: performance.now() };
             onFit();

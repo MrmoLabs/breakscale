@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { History, X } from 'lucide-react';
 import type { SimSnapshot, Topology } from '../sim/types';
+import { t, tN } from '../i18n';
 import {
   Timeline,
   firstAttention,
@@ -53,7 +54,11 @@ export function WhatHappened({ topology, snapshot }: WhatHappenedProps) {
   const latest = alert ? lines.reduce((a, e) => (e.id > a.id ? e : a), alert) : null;
   const status = (
     <div className="sr-only" role="status">
-      {latest ? <span key={latest.id}>What just happened: {latest.text}</span> : null}
+      {latest ? (
+        <span key={latest.id}>
+          {t('What just happened: {text}', { text: latest.text })}
+        </span>
+      ) : null}
     </div>
   );
   // Nothing worth a look yet: no button, no panel. A healthy run stays quiet.
@@ -86,7 +91,7 @@ export function WhatHappened({ topology, snapshot }: WhatHappenedProps) {
             onClick={() => setUserOpen(true)}
           >
             <History size={16} strokeWidth={2} aria-hidden="true" />
-            What just happened
+            {t('What just happened')}
           </button>
         </div>
       </>
@@ -100,18 +105,18 @@ export function WhatHappened({ topology, snapshot }: WhatHappenedProps) {
         <section
           className="card-float wh-panel"
           data-spot-avoid
-          aria-label="What just happened"
+          aria-label={t('What just happened')}
           onKeyDown={(e) => {
             if (e.key === 'Escape') close();
           }}
         >
           <header className="card-float-head">
-            <h2 className="card-float-title">What just happened</h2>
+            <h2 className="card-float-title">{t('What just happened')}</h2>
             <button
               type="button"
               className="btn btn-sm btn-ghost btn-icon wh-close"
-              aria-label="Close"
-              title="Close (Esc)"
+              aria-label={t('Close')}
+              title={t('Close (Esc)')}
               onClick={close}
             >
               <X size={16} strokeWidth={2} aria-hidden="true" />
@@ -119,7 +124,7 @@ export function WhatHappened({ topology, snapshot }: WhatHappenedProps) {
           </header>
           {earlier > 0 ? (
             <p className="wh-earlier">
-              {earlier === 1 ? '1 earlier line' : `${earlier} earlier lines`} not shown
+              {tN(earlier, '1 earlier line not shown', '{n} earlier lines not shown')}
             </p>
           ) : null}
           <ol className="wh-list">

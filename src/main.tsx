@@ -3,7 +3,12 @@ import { createRoot } from 'react-dom/client';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import './index.css';
+import { applyLang } from './i18n/applyLang';
 import App from './App';
+
+// The document's own metadata (lang, tab title) before the first paint of
+// the interface, which translates itself through t() as it renders.
+applyLang();
 
 const host = document.getElementById('root');
 if (!host) throw new Error('Root element #root not found');

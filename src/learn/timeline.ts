@@ -15,6 +15,9 @@ import {
   slotsOf,
   stateClause,
 } from './bottleneck';
+import { getLocale } from '../i18n';
+import { displayLabel } from '../i18n/display';
+import * as zh from '../i18n/zh/timeline';
 
 /**
  * "What just happened": the run so far as a few dated lines a student can
@@ -252,7 +255,9 @@ export class Timeline {
   }
 
   private name(id: string): string {
-    return this.labels.get(id) ?? 'A removed part';
+    const label = this.labels.get(id);
+    if (label) return displayLabel(label);
+    return getLocale() === 'zh' ? zh.removedPartName() : 'A removed part';
   }
 
   /* ---------------- what the student did ---------------- */
@@ -266,7 +271,7 @@ export class Timeline {
 
     for (const n of topology.nodes) {
       if (!oldIds.has(n.id)) {
-        this.push(t, `You added ${n.label}.`, 'change');
+        this.push(t, addedText(displayLabel(n.label)), 'change');
         continue;
       }
       const was = oldConfigs.get(n.id);
@@ -278,22 +283,22 @@ export class Timeline {
         if (a === b) continue;
         changed = true;
         if (typeof a !== 'number' || typeof b !== 'number') continue;
-        this.edit(
-          `${n.id}:${f.key}`,
-          a,
-          b,
-          t,
-          (from, to) =>
-            `You changed ${n.label}'s ${f.words} from ${f.show(from)} to ${f.show(to)}.`,
+        this.edit(`${n.id}:${f.key}`, a, b, t, (from, to) =>
+          fieldChangeText(displayLabel(n.label), f.words, from, to, f.show),
         );
       }
       if (!changed && !sameConfig(was, n.config)) {
-        this.edit(`${n.id}:other`, 0, 1, t, () => `You changed ${n.label}'s settings.`);
+        this.edit(`${n.id}:other`, 0, 1, t, () => settingsText(displayLabel(n.label)));
       }
     }
     for (const id of oldIds) {
       if (!this.nodeIds.has(id)) {
-        this.push(t, `You removed ${oldLabels.get(id) ?? 'a part'}.`, 'change');
+        const old = oldLabels.get(id);
+        this.push(
+          t,
+          removedText(old === undefined ? null : displayLabel(old)),
+          'change',
+        );
         this.parts.delete(id);
         this.faults.delete(id);
       }
@@ -368,10 +373,10 @@ export class Timeline {
       if (!now.has(id) && this.nodeIds.has(id)) {
         // A restart and a pause end by themselves; nobody cleared them.
         const text = key.startsWith('restart|')
-          ? `${this.name(id)} is back up.`
+          ? backUpText(this.name(id))
           : key.startsWith('pause|')
-            ? `${this.name(id)} carries on.`
-            : `The fault on ${this.name(id)} was cleared.`;
+            ? carriesOnText(this.name(id))
+            : faultClearedText(this.name(id));
         this.push(t, text, 'better');
       }
     }
@@ -383,12 +388,11 @@ export class Timeline {
       if (state === 'cut' && !partitioned.has(id)) cuts.add(id);
     }
     for (const id of cuts) {
-      if (!this.cuts.has(id))
-        this.push(t, `The link ${this.link(id)} was cut.`, 'cause');
+      if (!this.cuts.has(id)) this.push(t, linkCutText(this.link(id)), 'cause');
     }
     for (const id of this.cuts) {
       if (!cuts.has(id) && id in snapshot.edgeState) {
-        this.push(t, `The link ${this.link(id)} was restored.`, 'better');
+        this.push(t, linkRestoredText(this.link(id)), 'better');
       }
     }
     this.cuts = cuts;
@@ -398,20 +402,12 @@ export class Timeline {
     for (const d of snapshot.duplicating ?? []) {
       dups.set(d.edgeId, d.rate);
       if (this.dups.get(d.edgeId) !== d.rate) {
-        this.push(
-          d.sinceMs,
-          `The link ${this.link(d.edgeId)} started delivering ${formatPct(d.rate)} of requests twice.`,
-          'cause',
-        );
+        this.push(d.sinceMs, linkDupStartText(this.link(d.edgeId), d.rate), 'cause');
       }
     }
     for (const id of this.dups.keys()) {
       if (!dups.has(id) && id in snapshot.edgeState) {
-        this.push(
-          t,
-          `The link ${this.link(id)} delivers each request once again.`,
-          'better',
-        );
+        this.push(t, linkDupEndText(this.link(id)), 'better');
       }
     }
     this.dups = dups;
@@ -421,11 +417,7 @@ export class Timeline {
     for (const r of snapshot.repliesCut ?? []) {
       replyCuts.add(r.edgeId);
       if (!this.replyCuts.has(r.edgeId)) {
-        this.push(
-          r.sinceMs,
-          `The link ${this.link(r.edgeId)} started losing the answers coming back.`,
-          'cause',
-        );
+        this.push(r.sinceMs, linkReplyCutStartText(this.link(r.edgeId)), 'cause');
       }
     }
     for (const id of this.replyCuts) {
@@ -435,19 +427,9 @@ export class Timeline {
         const waiting =
           snapshot.repliesStranded?.find((r) => r.edgeId === id)?.waiting ?? 0;
         if (waiting > 0) {
-          const calls =
-            waiting === 1 ? '1 call is' : `${formatCount(waiting)} calls are`;
-          this.push(
-            t,
-            `The link ${this.link(id)} carries answers back again, but ${calls} still waiting for answers it lost.`,
-            'trouble',
-          );
+          this.push(t, linkReplyBackWaitingText(this.link(id), waiting), 'trouble');
         } else {
-          this.push(
-            t,
-            `The link ${this.link(id)} carries answers back again.`,
-            'better',
-          );
+          this.push(t, linkReplyBackText(this.link(id)), 'better');
         }
       }
     }
@@ -458,6 +440,9 @@ export class Timeline {
 
   private link(edgeId: string): string {
     const ends = this.edgeEnds.get(edgeId);
+    if (getLocale() === 'zh') {
+      return zh.linkPhrase(ends ? [this.name(ends[0]), this.name(ends[1])] : null);
+    }
     return ends
       ? `from ${this.name(ends[0])} to ${this.name(ends[1])}`
       : 'between two parts';
@@ -503,15 +488,18 @@ export class Timeline {
         // already did, and then the refusals need no line of their own.
         const said = track.holds.refusing.fired;
         if (c === 'full' && on.refusing) track.holds.refusing.fired = true;
-        const label = r.node.label;
+        const label = displayLabel(r.node.label);
         const text =
           c === 'full'
-            ? `${label}: ${stateClause(said ? { ...r, refused: 0 } : r, byId, topology)}.`
+            ? struggleLineText(
+                label,
+                stateClause(said ? { ...r, refused: 0 } : r, byId, topology),
+              )
             : c === 'waiting'
-              ? `${label}: ${waitingClause(waiting, slotsOf(r.node, r.s))} waiting on its calls.`
+              ? waitingLineText(label, waiting, slotsOf(r.node, r.s))
               : c === 'refusing'
-                ? `${label} started turning away ${formatRateBare(r.refused)} a second.`
-                : `${label} started giving up on slow calls, ${formatRateBare(r.gaveUp)} a second.`;
+                ? refusingText(label, r.refused)
+                : givingUpText(label, r.gaveUp);
         this.push(t, text, 'trouble', c === 'refusing' || c === 'givingUp');
       }
       if (any) {
@@ -524,7 +512,7 @@ export class Timeline {
           for (const c of CONDS) track.holds[c].fired = false;
           track.recovered = this.push(
             t,
-            `${r.node.label} is keeping up again.`,
+            keepingUpText(displayLabel(r.node.label)),
             'better',
           );
         }
@@ -560,13 +548,13 @@ export class Timeline {
       this.errors.since ??= t;
       if (!this.errors.fired && t - this.errors.since >= HOLD_MS) {
         this.errors.fired = true;
-        this.push(t, `${formatPct(err)} of requests started failing.`, 'trouble', true);
+        this.push(t, errorsStartText(err), 'trouble', true);
         this.worst = { event: null, rate: err };
       } else if (
         this.worst &&
         err >= this.worst.rate + (this.worst.event ? WORSE_BY : WORST_LINE)
       ) {
-        const text = `Worst so far: ${formatPct(err)} of requests failing.`;
+        const text = worstSoFarText(err);
         this.worst = {
           event: this.worst.event
             ? this.replace(this.worst.event, t, text)
@@ -582,13 +570,7 @@ export class Timeline {
           this.errors.fired = false;
           this.errorsClearSince = null;
           this.worst = null;
-          this.push(
-            t,
-            err > 0
-              ? `Requests are getting through again, only ${formatPct(err)} failing.`
-              : `Requests are getting through again, none failing.`,
-            'better',
-          );
+          this.push(t, throughAgainText(err), 'better');
         }
       }
     }
@@ -599,12 +581,7 @@ export class Timeline {
       this.slow.since ??= t;
       if (!this.slow.fired && t - this.slow.since >= HOLD_MS) {
         this.slow.fired = true;
-        this.push(
-          t,
-          `p99 passed 1s: the slowest 1 in 100 requests took ${formatMs(p99)}.`,
-          'trouble',
-          true,
-        );
+        this.push(t, p99CrossedText(p99), 'trouble', true);
       }
     } else {
       this.slow.since = null;
@@ -613,14 +590,19 @@ export class Timeline {
         if (t - this.slowClearSince >= CLEAR_MS) {
           this.slow.fired = false;
           this.slowClearSince = null;
-          this.push(t, `p99 is back under 1s, at ${formatMs(p99)}.`, 'better');
+          this.push(t, p99BackText(p99), 'better');
         }
       }
     }
   }
 }
 
-/* ---------------- sentences and small helpers ---------------- */
+/* ---------------- sentences and small helpers ----------------
+ *
+ * Each line a reader sees composes here, so the zh locale can mirror it in
+ * src/i18n/zh/timeline.ts without touching the tracking logic above. Names
+ * pass through displayLabel (the identity in English), so the English path
+ * is byte-identical to what timeline.test.ts pins. */
 
 /** "3.0s", the ledger's own clock format. */
 export function formatAt(ms: number): string {
@@ -633,9 +615,139 @@ function clientLoad(topology: Topology): number {
   return sum;
 }
 
+function addedText(name: string): string {
+  if (getLocale() === 'zh') return zh.addedPart(name);
+  return `You added ${name}.`;
+}
+
+function removedText(name: string | null): string {
+  if (getLocale() === 'zh') return zh.removedPart(name);
+  return `You removed ${name ?? 'a part'}.`;
+}
+
+function fieldChangeText(
+  label: string,
+  words: string,
+  from: number,
+  to: number,
+  show: (v: number) => string,
+): string {
+  if (getLocale() === 'zh') return zh.fieldChange(label, words, from, to, show);
+  return `You changed ${label}'s ${words} from ${show(from)} to ${show(to)}.`;
+}
+
+function settingsText(label: string): string {
+  if (getLocale() === 'zh') return zh.settingsChange(label);
+  return `You changed ${label}'s settings.`;
+}
+
 function loadText(from: number, to: number): string {
+  if (getLocale() === 'zh') return zh.loadChange(from, to);
   const dir = to > from ? 'raised' : 'lowered';
   return `You ${dir} the load from ${formatRateBare(from)} to ${formatRateBare(to)} a second.`;
+}
+
+function backUpText(name: string): string {
+  if (getLocale() === 'zh') return zh.backUp(name);
+  return `${name} is back up.`;
+}
+
+function carriesOnText(name: string): string {
+  if (getLocale() === 'zh') return zh.carriesOn(name);
+  return `${name} carries on.`;
+}
+
+function faultClearedText(name: string): string {
+  if (getLocale() === 'zh') return zh.faultCleared(name);
+  return `The fault on ${name} was cleared.`;
+}
+
+function linkCutText(link: string): string {
+  if (getLocale() === 'zh') return zh.linkCut(link);
+  return `The link ${link} was cut.`;
+}
+
+function linkRestoredText(link: string): string {
+  if (getLocale() === 'zh') return zh.linkRestored(link);
+  return `The link ${link} was restored.`;
+}
+
+function linkDupStartText(link: string, rate: number): string {
+  if (getLocale() === 'zh') return zh.linkDupStart(link, rate);
+  return `The link ${link} started delivering ${formatPct(rate)} of requests twice.`;
+}
+
+function linkDupEndText(link: string): string {
+  if (getLocale() === 'zh') return zh.linkDupEnd(link);
+  return `The link ${link} delivers each request once again.`;
+}
+
+function linkReplyCutStartText(link: string): string {
+  if (getLocale() === 'zh') return zh.linkReplyCutStart(link);
+  return `The link ${link} started losing the answers coming back.`;
+}
+
+function linkReplyBackText(link: string): string {
+  if (getLocale() === 'zh') return zh.linkReplyBack(link);
+  return `The link ${link} carries answers back again.`;
+}
+
+function linkReplyBackWaitingText(link: string, waiting: number): string {
+  if (getLocale() === 'zh') return zh.linkReplyBackWaiting(link, waiting);
+  const calls = waiting === 1 ? '1 call is' : `${formatCount(waiting)} calls are`;
+  return `The link ${link} carries answers back again, but ${calls} still waiting for answers it lost.`;
+}
+
+function struggleLineText(name: string, clause: string): string {
+  if (getLocale() === 'zh') return zh.struggleLine(name, clause);
+  return `${name}: ${clause}.`;
+}
+
+function waitingLineText(name: string, waiting: number, slots: number | null): string {
+  if (getLocale() === 'zh') return zh.waitingLine(name, waiting, slots);
+  return `${name}: ${waitingClause(waiting, slots)} waiting on its calls.`;
+}
+
+function refusingText(name: string, rate: number): string {
+  if (getLocale() === 'zh') return zh.refusingStart(name, rate);
+  return `${name} started turning away ${formatRateBare(rate)} a second.`;
+}
+
+function givingUpText(name: string, rate: number): string {
+  if (getLocale() === 'zh') return zh.givingUpStart(name, rate);
+  return `${name} started giving up on slow calls, ${formatRateBare(rate)} a second.`;
+}
+
+function keepingUpText(name: string): string {
+  if (getLocale() === 'zh') return zh.keepingUp(name);
+  return `${name} is keeping up again.`;
+}
+
+function errorsStartText(rate: number): string {
+  if (getLocale() === 'zh') return zh.errorsStart(rate);
+  return `${formatPct(rate)} of requests started failing.`;
+}
+
+function worstSoFarText(rate: number): string {
+  if (getLocale() === 'zh') return zh.worstSoFar(rate);
+  return `Worst so far: ${formatPct(rate)} of requests failing.`;
+}
+
+function throughAgainText(rate: number): string {
+  if (getLocale() === 'zh') return zh.throughAgain(rate);
+  return rate > 0
+    ? `Requests are getting through again, only ${formatPct(rate)} failing.`
+    : `Requests are getting through again, none failing.`;
+}
+
+function p99CrossedText(ms: number): string {
+  if (getLocale() === 'zh') return zh.p99Crossed(ms);
+  return `p99 passed 1s: the slowest 1 in 100 requests took ${formatMs(ms)}.`;
+}
+
+function p99BackText(ms: number): string {
+  if (getLocale() === 'zh') return zh.p99Back(ms);
+  return `p99 is back under 1s, at ${formatMs(ms)}.`;
 }
 
 function waitingClause(waiting: number, slots: number | null): string {
@@ -649,6 +761,7 @@ function faultKey(f: ActiveFailure): string {
 }
 
 function faultText(f: ActiveFailure, name: string): string {
+  if (getLocale() === 'zh') return zh.faultLine(f, name);
   switch (f.kind) {
     case 'crash':
       return `${name} crashed.`;

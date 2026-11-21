@@ -10,6 +10,9 @@ import type {
 import { heldShare, sourceBacklogs } from '../components/Canvas';
 import { formatCount, formatMs, formatPct, formatRateBare } from '../components/format';
 import { formatFactor } from '../components/faultWiring';
+import { getLocale } from '../i18n';
+import { displayLabel } from '../i18n/display';
+import * as zh from '../i18n/zh/bottleneck';
 
 /**
  * "Find the problem": which one part is holding the system back right now,
@@ -222,7 +225,7 @@ export function findBottleneck(topology: Topology, snapshot: SimSnapshot): Verdi
   if (!(snapshot.system.offeredRps > 0)) {
     return {
       kind: 'idle',
-      text: 'No traffic is flowing, so nothing can struggle yet.',
+      text: idleText(),
     };
   }
 
@@ -265,7 +268,11 @@ export function findBottleneck(topology: Topology, snapshot: SimSnapshot): Verdi
     return {
       kind: 'problem',
       nodeId: log.node.id,
-      text: `${log.node.label}: its slowest reader is ${formatCount(log.s.consumerLag ?? log.s.queued)} messages behind, and ${rate(log.s.retentionDropRate ?? 0)} a second expire before they are read.`,
+      text: logText(
+        displayLabel(log.node.label),
+        log.s.consumerLag ?? log.s.queued,
+        log.s.retentionDropRate ?? 0,
+      ),
     };
   }
 
@@ -281,12 +288,12 @@ export function findBottleneck(topology: Topology, snapshot: SimSnapshot): Verdi
     if (!slowest) continue;
     const blame =
       caller.gaveUp >= MIN_RATE
-        ? `${caller.node.label} is giving up on it, ${rate(caller.gaveUp)} timeouts a second.`
-        : `${caller.node.label} has every slot waiting on it.`;
+        ? gaveUpBlameText(displayLabel(caller.node.label), caller.gaveUp)
+        : allWaitingText(displayLabel(caller.node.label));
     return {
       kind: 'problem',
       nodeId: slowest.node.id,
-      text: `${slowest.node.label} is slow to answer, p99 ${formatMs(slowest.s.p99)}. ${blame}`,
+      text: slowAnswerText(displayLabel(slowest.node.label), slowest.s.p99, blame),
     };
   }
 
@@ -299,14 +306,15 @@ export function findBottleneck(topology: Topology, snapshot: SimSnapshot): Verdi
     return {
       kind: 'on-purpose',
       nodeId: gate.r.node.id,
-      text: `Nothing is full. ${gate.r.node.label} is turning away ${rate(gate.n)} a second on purpose, which is its job.`,
+      text: gateText(displayLabel(gate.r.node.label), gate.n),
     };
   }
 
   const busiest = readings.filter((r) => r.fill > 0).sort((a, b) => b.fill - a.fill)[0];
-  const base = busiest
-    ? `Nothing is struggling right now. The busiest part is ${busiest.node.label} at ${formatPct(busiest.fill)}.`
-    : 'Nothing is struggling right now.';
+  const base = healthyText(
+    busiest ? displayLabel(busiest.node.label) : null,
+    busiest ? busiest.fill : null,
+  );
 
   // Errors with nothing full: name where they come from rather than hide them.
   if (snapshot.system.errorRate >= ERRORS_WORTH_NAMING) {
@@ -317,7 +325,7 @@ export function findBottleneck(topology: Topology, snapshot: SimSnapshot): Verdi
       return {
         kind: 'problem',
         nodeId: failing.node.id,
-        text: `Nothing is full, but ${failing.node.label} is failing ${formatPct(failing.s.errorRate)} of its requests.`,
+        text: failingText(displayLabel(failing.node.label), failing.s.errorRate),
       };
     }
   }
@@ -333,6 +341,7 @@ export function stateClause(
   byId: ReadonlyMap<string, Reading>,
   topology: Topology,
 ): string {
+  const zhMode = getLocale() === 'zh';
   const parts: string[] = [];
   if (r.fill >= FULL) {
     const slots = slotsOf(r.node, r.s);
@@ -341,34 +350,54 @@ export function stateClause(
       // Full only because calls hold slots: the box reads busy as the working
       // share alone, so a bare "all busy" would contradict it.
       parts.push(
-        `all ${formatCount(slots)} slots taken, ${formatCount(r.s.inFlight)} working and ${formatCount(held)} waiting on its calls`,
+        zhMode
+          ? zh.slotsTakenHeld(slots, r.s.inFlight, held)
+          : `all ${formatCount(slots)} slots taken, ${formatCount(r.s.inFlight)} working and ${formatCount(held)} waiting on its calls`,
       );
     } else if (slots !== null) {
-      parts.push(`all ${formatCount(slots)} slots busy`);
+      parts.push(zhMode ? zh.slotsBusy(slots) : `all ${formatCount(slots)} slots busy`);
     } else if (r.node.kind === 'shard') {
-      parts.push(`its busiest partition is at ${formatPct(r.fill)}`);
-    } else if (r.node.kind === 'lambda') {
       parts.push(
-        `all ${formatCount(r.node.config.maxConcurrency ?? 0)} copies running`,
+        zhMode
+          ? zh.busiestPartition(r.fill)
+          : `its busiest partition is at ${formatPct(r.fill)}`,
+      );
+    } else if (r.node.kind === 'lambda') {
+      const copies = r.node.config.maxConcurrency ?? 0;
+      parts.push(
+        zhMode ? zh.copiesRunning(copies) : `all ${formatCount(copies)} copies running`,
       );
     } else if (r.node.kind === 'websocket') {
-      parts.push(`all ${formatCount(r.s.maxConnections ?? 0)} connections in use`);
+      const connections = r.s.maxConnections ?? 0;
+      parts.push(
+        zhMode
+          ? zh.connectionsInUse(connections)
+          : `all ${formatCount(connections)} connections in use`,
+      );
     } else {
-      parts.push(`${formatPct(r.fill)} busy`);
+      parts.push(zhMode ? zh.pctBusy(r.fill) : `${formatPct(r.fill)} busy`);
     }
   }
   if (r.line >= 1) {
     if (behaviourFor(r.node.kind).pullsFromQueues) {
       const feed = feedingBuffer(r, byId, topology);
       parts.push(
-        `${formatCount(r.line)} waiting in ${feed ? feed.node.label : 'line'}`,
+        zhMode
+          ? zh.waitingInBuffer(r.line, feed ? displayLabel(feed.node.label) : null)
+          : `${formatCount(r.line)} waiting in ${feed ? feed.node.label : 'line'}`,
       );
     } else {
-      parts.push(`${formatCount(r.line)} waiting in line`);
+      parts.push(
+        zhMode ? zh.waitingInLine(r.line) : `${formatCount(r.line)} waiting in line`,
+      );
     }
   }
-  if (r.refused >= MIN_RATE) parts.push(`turning away ${rate(r.refused)} a second`);
-  return parts.join(', ');
+  if (r.refused >= MIN_RATE) {
+    parts.push(
+      zhMode ? zh.turningAway(r.refused) : `turning away ${rate(r.refused)} a second`,
+    );
+  }
+  return parts.join(zhMode ? '，' : ', ');
 }
 
 function struggleText(
@@ -376,7 +405,12 @@ function struggleText(
   topology: Topology,
   byId: ReadonlyMap<string, Reading>,
 ): string {
-  return `${r.node.label}: ${stateClause(r, byId, topology)}.${feedText(r, topology, byId)}${upstreamText(r, topology, byId)}`;
+  const clause = stateClause(r, byId, topology);
+  const rest = `${feedText(r, topology, byId)}${upstreamText(r, topology, byId)}`;
+  if (getLocale() === 'zh') {
+    return zh.struggleText(displayLabel(r.node.label), clause, rest);
+  }
+  return `${r.node.label}: ${clause}.${rest}`;
 }
 
 /** For a part that pulls from a buffer: is that buffer overflowing, or still filling? */
@@ -388,8 +422,11 @@ function feedText(
   if (!behaviourFor(r.node.kind).pullsFromQueues) return '';
   const feed = feedingBuffer(r, byId, topology);
   if (!feed) return '';
+  const zhMode = getLocale() === 'zh';
+  const name = zhMode ? displayLabel(feed.node.label) : feed.node.label;
   if (feed.s.shedRate >= MIN_RATE) {
-    return ` ${feed.node.label} is full and turning away ${rate(feed.s.shedRate)} a second.`;
+    const sentence = feedFullText(name, feed.s.shedRate);
+    return zhMode ? sentence : ` ${sentence}`;
   }
   // A queue's own "out" counts what it accepted, so the drain rate is the
   // reader's. Only stated when this part is the buffer's one reader.
@@ -398,7 +435,8 @@ function feedText(
       byId.get(id) && behaviourFor(byId.get(id)?.node.kind ?? 'client').pullsFromQueues,
   );
   if (readers.length === 1 && feed.s.arrivalRate > r.s.throughput + MIN_RATE) {
-    return ` ${feed.node.label} takes in ${rate(feed.s.arrivalRate)} a second but only ${rate(r.s.throughput)} a second get done, so the line keeps growing.`;
+    const sentence = feedGrowingText(name, feed.s.arrivalRate, r.s.throughput);
+    return zhMode ? sentence : ` ${sentence}`;
   }
   return '';
 }
@@ -409,6 +447,7 @@ function upstreamText(
   topology: Topology,
   byId: ReadonlyMap<string, Reading>,
 ): string {
+  const zhMode = getLocale() === 'zh';
   const behind = callers(topology, r.node.id)
     .map((id) => byId.get(id))
     .filter((c): c is Reading => c !== undefined);
@@ -416,13 +455,21 @@ function upstreamText(
     .filter((c) => c.gaveUp >= MIN_RATE)
     .sort((a, b) => b.gaveUp - a.gaveUp)[0];
   if (givingUp) {
-    return ` ${givingUp.node.label} is giving up on it, ${rate(givingUp.gaveUp)} timeouts a second.`;
+    const sentence = gaveUpBlameText(
+      zhMode ? displayLabel(givingUp.node.label) : givingUp.node.label,
+      givingUp.gaveUp,
+    );
+    return zhMode ? sentence : ` ${sentence}`;
   }
   const waiting = behind
     .filter((c) => (c.s.waitingOnDownstream ?? 0) >= 1)
     .sort((a, b) => (b.s.waitingOnDownstream ?? 0) - (a.s.waitingOnDownstream ?? 0))[0];
   if (waiting) {
-    return ` ${waiting.node.label} is stuck behind it, with ${formatCount(waiting.s.waitingOnDownstream)} requests waiting on its calls.`;
+    const sentence = stuckBehindText(
+      zhMode ? displayLabel(waiting.node.label) : waiting.node.label,
+      waiting.s.waitingOnDownstream ?? 0,
+    );
+    return zhMode ? sentence : ` ${sentence}`;
   }
   return '';
 }
@@ -469,6 +516,16 @@ function faultText(
   topology: Topology,
   byId: ReadonlyMap<string, Reading>,
 ): string {
+  if (getLocale() === 'zh') {
+    return zh.faultText(
+      f,
+      displayLabel(r.node.label),
+      r.struggling,
+      stateClause(r, byId, topology),
+      feedText(r, topology, byId),
+      upstreamText(r, topology, byId),
+    );
+  }
   const name = r.node.label;
   switch (f.kind) {
     case 'crash':
@@ -495,6 +552,70 @@ function faultText(
       return `${name}: ${did}. Now ${stateClause(r, byId, topology)}.${feedText(r, topology, byId)}${upstreamText(r, topology, byId)}`;
     }
   }
+}
+
+/* ---------------- sentences ----------------
+ *
+ * Each verdict sentence composes here, so the zh locale can mirror it in
+ * src/i18n/zh/bottleneck.ts without touching the picking logic above. Names
+ * pass through displayLabel (the identity in English), so the English path is
+ * byte-identical to what bottleneck.test.ts pins. */
+
+function idleText(): string {
+  if (getLocale() === 'zh') return zh.idleText();
+  return 'No traffic is flowing, so nothing can struggle yet.';
+}
+
+function logText(name: string, lag: number, expired: number): string {
+  if (getLocale() === 'zh') return zh.logText(name, lag, expired);
+  return `${name}: its slowest reader is ${formatCount(lag)} messages behind, and ${rate(expired)} a second expire before they are read.`;
+}
+
+function gaveUpBlameText(name: string, gaveUp: number): string {
+  if (getLocale() === 'zh') return zh.gaveUpBlame(name, gaveUp);
+  return `${name} is giving up on it, ${rate(gaveUp)} timeouts a second.`;
+}
+
+function allWaitingText(name: string): string {
+  if (getLocale() === 'zh') return zh.allWaitingBlame(name);
+  return `${name} has every slot waiting on it.`;
+}
+
+function slowAnswerText(name: string, p99: number, blame: string): string {
+  if (getLocale() === 'zh') return zh.slowAnswer(name, p99, blame);
+  return `${name} is slow to answer, p99 ${formatMs(p99)}. ${blame}`;
+}
+
+function gateText(name: string, refused: number): string {
+  if (getLocale() === 'zh') return zh.gateText(name, refused);
+  return `Nothing is full. ${name} is turning away ${rate(refused)} a second on purpose, which is its job.`;
+}
+
+function healthyText(name: string | null, fill: number | null): string {
+  if (getLocale() === 'zh') return zh.healthyText(name, fill);
+  return name !== null && fill !== null
+    ? `Nothing is struggling right now. The busiest part is ${name} at ${formatPct(fill)}.`
+    : 'Nothing is struggling right now.';
+}
+
+function failingText(name: string, errorRate: number): string {
+  if (getLocale() === 'zh') return zh.failingText(name, errorRate);
+  return `Nothing is full, but ${name} is failing ${formatPct(errorRate)} of its requests.`;
+}
+
+function feedFullText(name: string, shed: number): string {
+  if (getLocale() === 'zh') return zh.feedFull(name, shed);
+  return `${name} is full and turning away ${rate(shed)} a second.`;
+}
+
+function feedGrowingText(name: string, arrival: number, done: number): string {
+  if (getLocale() === 'zh') return zh.feedGrowing(name, arrival, done);
+  return `${name} takes in ${rate(arrival)} a second but only ${rate(done)} a second get done, so the line keeps growing.`;
+}
+
+function stuckBehindText(name: string, waiting: number): string {
+  if (getLocale() === 'zh') return zh.stuckBehind(name, waiting);
+  return `${name} is stuck behind it, with ${formatCount(waiting)} requests waiting on its calls.`;
 }
 
 /* ---------------- small helpers ---------------- */

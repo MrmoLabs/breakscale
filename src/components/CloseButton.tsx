@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { t } from '../i18n';
 
 /**
  * The one close control every dialog and panel uses: a ghost button with a
@@ -16,8 +17,8 @@ export function CloseButton({
     <button
       type="button"
       className={'btn btn-ghost btn-icon' + (className ? ` ${className}` : '')}
-      aria-label="Close"
-      title="Close (Esc)"
+      aria-label={t('Close')}
+      title={t('Close (Esc)')}
       onClick={onClick}
     >
       <X size={16} strokeWidth={2} aria-hidden="true" />

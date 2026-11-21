@@ -5,6 +5,9 @@ import { challengeById } from '../sim/challenges';
 import { incidentById } from '../sim/incidents';
 import type { Topology } from '../sim/types';
 import type { ChallengeBadge } from '../challengeWorkspace';
+import { challengeCopy } from '../i18n/content/challenges';
+import { incidentCopy } from '../i18n/content/incidents';
+import { presetCopy } from '../i18n/content/presets';
 import { LEARNING_PATH, type PathStep } from '../content/learningPath';
 
 /* ------------------------------------------------------------------ *
@@ -143,15 +146,25 @@ export function stepOfBrief(briefId: string): PathStep | null {
   return null;
 }
 
-/** A step's name as the gallery, the picker or the outages list shows it. */
+/**
+ * A step's name as the gallery, the picker or the outages list shows it.
+ * Brief and outage names are data text, so they show translated (in en they
+ * come back unchanged); example names are the presets' own display layer.
+ */
 export function stepName(step: PathStep): string {
   switch (step.kind) {
-    case 'example':
-      return PRESETS.find((p) => p.id === step.id)?.name ?? step.id;
-    case 'challenge':
-      return challengeById(step.id)?.name ?? step.id;
-    case 'incident':
-      return incidentById(step.id)?.name ?? step.id;
+    case 'example': {
+      const p = PRESETS.find((x) => x.id === step.id);
+      return p ? presetCopy(p).name : step.id;
+    }
+    case 'challenge': {
+      const c = challengeById(step.id);
+      return c ? challengeCopy(c).name : step.id;
+    }
+    case 'incident': {
+      const i = incidentById(step.id);
+      return i ? incidentCopy(i).name : step.id;
+    }
   }
 }
 

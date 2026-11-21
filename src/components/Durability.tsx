@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { t } from '../i18n';
 import { formatDownFor } from './faultWiring';
 
 /* ------------------------------------------------------------------ *
@@ -12,8 +13,8 @@ const FLUSH_CHOICES: readonly number[] = [0, 10, 100, 1000];
 
 function choiceLabel(ms: number): string {
   return ms === 0
-    ? 'Before it answers'
-    : `Within ${ms < 1000 ? `${ms}ms` : formatDownFor(ms)}`;
+    ? t('Before it answers')
+    : t('Within {t}', { t: ms < 1000 ? `${ms}ms` : formatDownFor(ms) });
 }
 
 /**
@@ -40,7 +41,7 @@ export function FlushRow({
   return (
     <div className={locked ? 'ins-field-row is-locked' : 'ins-field-row'}>
       <label className="row-k" htmlFor={id}>
-        Writes reach disk
+        {t('Writes reach disk')}
       </label>
       <select
         id={id}
@@ -62,8 +63,13 @@ export function FlushRow({
       <p id={hintId} className="ins-hint">
         {locked ??
           (value > 0
-            ? `It answers before the write is on disk, and writes it there ${choiceLabel(value).toLowerCase()}. A crash or restart loses every write still waiting.`
-            : 'It writes each change to disk before it answers, so a crash loses nothing it said was saved.')}
+            ? t(
+                'It answers before the write is on disk, and writes it there {when}. A crash or restart loses every write still waiting.',
+                { when: choiceLabel(value).toLowerCase() },
+              )
+            : t(
+                'It writes each change to disk before it answers, so a crash loses nothing it said was saved.',
+              ))}
       </p>
     </div>
   );

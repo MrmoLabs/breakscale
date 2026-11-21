@@ -22,6 +22,21 @@ import { readFile } from 'node:fs/promises';
 /** Key under which the panel's storage lives in globalState. */
 const STORAGE_KEY = 'breakscale.webviewStorage';
 
+/*
+ * The extension's own copy, outside the webview. The app inside the panel
+ * translates itself through the i18n layer (the storage bridge carries the
+ * language preference); these few strings live on the host, so they follow
+ * the editor's language instead.
+ */
+const zh = vscode.env.language.toLowerCase().startsWith('zh');
+const LAUNCHER_BUTTON = zh ? '打开 Breakscale' : 'Open Breakscale';
+const LAUNCHER_TAGLINE = zh
+  ? '搭建一个系统，加大流量直到把它压垮，看清原因。'
+  : 'Build a system, load it until it breaks, and watch why.';
+const MISSING_BUILD = zh
+  ? 'Breakscale 找不到它的构建产物。请在仓库里运行 `bun run build:webview`，或者重新安装本扩展。'
+  : 'Breakscale could not find its build. Run `bun run build:webview` in the repository, or reinstall the extension.';
+
 /** What the panel sends us. Anything else is ignored. */
 type Incoming =
   | { type: 'breakscale:ready' }
@@ -144,9 +159,7 @@ class Panel {
       // The build did not run, or the .vsix was packaged without it. Say
       // which, because "blank panel" is the least actionable bug report
       // there is.
-      this.panel.webview.html = errorPage(
-        'Breakscale could not find its build. Run `bun run build:webview` in the repository, or reinstall the extension.',
-      );
+      this.panel.webview.html = errorPage(MISSING_BUILD);
       return;
     }
 
@@ -248,8 +261,8 @@ function launcherHtml(): string {
     </style>
   </head>
   <body>
-    <button id="open" type="button">Open Breakscale</button>
-    <p>Build a system, load it until it breaks, and watch why.</p>
+    <button id="open" type="button">${LAUNCHER_BUTTON}</button>
+    <p>${LAUNCHER_TAGLINE}</p>
     <script nonce="${nonce}">
       const vscode = acquireVsCodeApi();
       document.getElementById('open').addEventListener('click', () => vscode.postMessage({}));

@@ -9,6 +9,8 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { GLOSSARY_BY_ID, type GlossaryEntry } from '../content/glossary';
+import { glossaryCopy } from '../i18n/content/glossary';
+import { t, getLocale, type Locale } from '../i18n';
 import { usePreference } from '../content/preferences';
 import './Tooltip.css';
 
@@ -675,6 +677,8 @@ export function TooltipLayer() {
   useEffect(() => () => clearTimers(), []);
 
   const entry = open?.entry;
+  // The term stays as-is; the definition and paragraph follow the locale.
+  const copy = entry ? glossaryCopy(entry) : null;
   const see = entry
     ? (entry.see ?? [])
         .map((sid) => GLOSSARY_BY_ID.get(sid))
@@ -722,12 +726,12 @@ export function TooltipLayer() {
               ) : null}
 
               <p className="tip-term">{entry.term}</p>
-              <p className="tip-short">{entry.short}</p>
-              <p className="tip-why">{entry.why}</p>
+              <p className="tip-short">{copy?.short}</p>
+              <p className="tip-why">{copy?.why}</p>
 
               {see.length > 0 && navigateHandler ? (
                 <p className="tip-see">
-                  <span className="tip-see-label">See also</span>
+                  <span className="tip-see-label">{t('See also')}</span>
                   {see.map((other) => (
                     <button
                       key={other.id}
@@ -760,22 +764,36 @@ export function TooltipLayer() {
  * One hidden description per glossary entry, rendered once for the whole
  * app. Every <Term> with that id points its aria-describedby here.
  *
- * Static content, so it is memoised to a constant element and never
- * re-renders — it costs one pass at mount and nothing thereafter, even while
- * the layer above it opens and closes at speed.
+ * Static per locale, so it is cached as one element and never re-renders
+ * while tooltips open and close — it costs one pass at boot and one more
+ * whenever the reader switches language, and nothing thereafter, even while
+ * the layer above it opens and closes at speed. Computing it inside the
+ * render keeps a language switch from leaving screen-reader descriptions in
+ * the language the page booted in.
  */
-const DESCRIPTIONS = (
-  <div className="sr-only" aria-hidden="false">
-    {[...GLOSSARY_BY_ID.values()].map((e) => (
-      <span key={e.id} id={`term-desc-${e.id}`}>
-        {e.term}. {e.short}. Press Enter for the full explanation.
-      </span>
-    ))}
-  </div>
-);
+let descriptionsLocale: Locale | null = null;
+let descriptionsNode: ReactNode = null;
+
+function termDescriptions(): ReactNode {
+  const locale = getLocale();
+  if (descriptionsLocale !== locale) {
+    descriptionsLocale = locale;
+    descriptionsNode = (
+      <div className="sr-only" aria-hidden="false">
+        {[...GLOSSARY_BY_ID.values()].map((e) => (
+          <span key={e.id} id={`term-desc-${e.id}`}>
+            {e.term}. {glossaryCopy(e).short}.{' '}
+            {t('Press Enter for the full explanation.')}
+          </span>
+        ))}
+      </div>
+    );
+  }
+  return descriptionsNode;
+}
 
 function TermDescriptions() {
-  return DESCRIPTIONS;
+  return termDescriptions();
 }
 
 /* ------------------------------------------------------------------ *

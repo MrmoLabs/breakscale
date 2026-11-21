@@ -1,6 +1,7 @@
 import { isTopology } from './clipboard';
 import { sanitizeAnnotations } from './sim/annotations';
 import { downloadBlob } from './imageExport';
+import { t } from './i18n';
 
 /* ------------------------------------------------------------------ *
  * Whole-browser backup.
@@ -128,7 +129,7 @@ function acceptable(key: string, value: string): boolean {
  */
 export function restoreBackup(text: string): BackupResult {
   if (typeof text !== 'string' || !text.trim()) {
-    return { ok: false, error: 'That file is empty.' };
+    return { ok: false, error: t('That file is empty.') };
   }
 
   let parsed: unknown;
@@ -137,26 +138,26 @@ export function restoreBackup(text: string): BackupResult {
   } catch {
     return {
       ok: false,
-      error: 'That file is not valid JSON. It may have been edited or partly saved.',
+      error: t('That file is not valid JSON. It may have been edited or partly saved.'),
     };
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return { ok: false, error: 'That file does not hold a Breakscale backup.' };
+    return { ok: false, error: t('That file does not hold a Breakscale backup.') };
   }
 
   const f = parsed as Partial<BackupFile>;
   if (f.app !== BACKUP_APP) {
-    return { ok: false, error: 'That file does not hold a Breakscale backup.' };
+    return { ok: false, error: t('That file does not hold a Breakscale backup.') };
   }
   const version = typeof f.version === 'number' ? f.version : 0;
   if (version > BACKUP_VERSION) {
     return {
       ok: false,
-      error: 'That backup was made by a newer version of Breakscale.',
+      error: t('That backup was made by a newer version of Breakscale.'),
     };
   }
   if (!f.data || typeof f.data !== 'object') {
-    return { ok: false, error: 'That backup is missing its contents.' };
+    return { ok: false, error: t('That backup is missing its contents.') };
   }
 
   const restored: string[] = [];
@@ -170,13 +171,13 @@ export function restoreBackup(text: string): BackupResult {
     } catch {
       return {
         ok: false,
-        error: 'There is no room left in this browser to restore that backup.',
+        error: t('There is no room left in this browser to restore that backup.'),
       };
     }
   }
 
   if (restored.length === 0) {
-    return { ok: false, error: 'That backup held nothing this version can read.' };
+    return { ok: false, error: t('That backup held nothing this version can read.') };
   }
   return { ok: true, restored };
 }

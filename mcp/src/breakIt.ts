@@ -17,10 +17,11 @@ import {
   scheduleSentence,
   singlePointLines,
   timelineWords,
-  TRUNCATED_LINE,
+  truncatedLine,
   triedLine,
 } from '../../src/components/breakCopy';
 import type { Names } from '../../src/components/breakCopy';
+import { getLocale, t } from '../../src/i18n';
 import { REASON_WORDS } from './run';
 
 /* ------------------------------------------------------------------ *
@@ -92,7 +93,9 @@ export function namesFor(design: Topology): Names {
     node,
     edge: (id: string) => {
       const e = design.edges.find((x) => x.id === id);
-      return e ? `the cable from ${node(e.from)} to ${node(e.to)}` : `'${id}'`;
+      return e
+        ? t('the cable from {a} to {b}', { a: node(e.from), b: node(e.to) })
+        : `'${id}'`;
     },
   };
 }
@@ -104,15 +107,18 @@ function failures(byReason: Partial<Record<FailureReason, number>>): string | nu
     .filter(([, n]) => n > 0)
     .sort((a, b) => b[1] - a[1]);
   if (reasons.length === 0) return null;
-  return (
-    'Failed requests in that window: ' +
-    reasons.map(([r, n]) => `${n} ${REASON_WORDS[r] ?? r}`).join('; ') +
-    '.'
-  );
+  return `${t('Failed requests in that window: {list}.', { list: reasons.map(([r, n]) => `${n} ${t(REASON_WORDS[r] ?? r)}`).join('; ') })}`;
 }
 
 /** A story line's tag, after the line. */
-const TAG = { 'charged-again': 'charged again', lost: 'lost', stale: 'stale' } as const;
+const TAG = {
+  'charged-again': 'charged again',
+  lost: 'lost',
+  stale: 'stale',
+} as const;
+
+const tagWord = (tag: keyof typeof TAG): string =>
+  getLocale() === 'zh' ? t(TAG[tag]) : TAG[tag];
 
 /** Most lines of a request's story one answer carries. */
 const STORY_LINES = 24;
@@ -126,12 +132,14 @@ function evidence(v: Violation, replay: Topology, names: Names): string[] {
   const lines = ['', evidenceSentence(v, names)];
   if (tl === null) return lines;
   const story = timelineWords(tl, names, v).map(
-    (l) => `${clock(l.t)} ${l.text}${l.tag === null ? '' : ` (${TAG[l.tag]})`}`,
+    (l) => `${clock(l.t)} ${l.text}${l.tag === null ? '' : ` (${tagWord(l.tag)})`}`,
   );
-  lines.push(`What happened to request ${v.rid}, on the replay's clock:`);
+  lines.push(
+    t("What happened to request {rid}, on the replay's clock:", { rid: v.rid }),
+  );
   lines.push(...story.slice(0, STORY_LINES));
   if (story.length > STORY_LINES) {
-    lines.push(`And ${story.length - STORY_LINES} more steps.`);
+    lines.push(t('And {n} more steps.', { n: story.length - STORY_LINES }));
   }
   return lines;
 }
@@ -147,7 +155,11 @@ export async function breakDesign(
   let budget = req.budget ?? limits.maxBudget;
   if (budget > limits.maxBudget) {
     lines.push(
-      `The budget was cut from ${req.budget} to ${limits.maxBudget} schedules, the most this server tries in one call.`,
+      t(
+        'The budget was cut from {n} to {max} schedules, the most this server tries in one call.',
+        // The condition above guarantees req.budget is a number here.
+        { n: budget, max: limits.maxBudget },
+      ),
     );
     budget = limits.maxBudget;
   }
@@ -182,8 +194,13 @@ export async function breakDesign(
     tried = step.value.tried;
     if (performance.now() - start > limits.wallMs) {
       lines.push(
-        `Stopped after ${plural(tried, 'schedule', 'schedules')} without an answer: the design is too heavy to search here in one call. ` +
-          'A smaller budget, fewer fault kinds or maxFaults 1 makes it lighter.',
+        getLocale() === 'zh'
+          ? t(
+              'Stopped after {n} schedules without an answer: the design is too heavy to search here in one call. A smaller budget, fewer fault kinds or maxFaults 1 makes it lighter.',
+              { n: tried },
+            )
+          : `Stopped after ${plural(tried, 'schedule', 'schedules')} without an answer: the design is too heavy to search here in one call. ` +
+              'A smaller budget, fewer fault kinds or maxFaults 1 makes it lighter.',
       );
       return { ok: true, text: lines.join('\n'), verdict: null };
     }
@@ -192,18 +209,18 @@ export async function breakDesign(
 
   const names = namesFor(design);
   if ((design.faults?.length ?? 0) > 0) {
-    lines.push("The design's own faults were left out; the search picks its own.");
+    lines.push(t("The design's own faults were left out; the search picks its own."));
   }
 
   switch (verdict.status) {
     case 'alreadyBroken': {
       const m = verdict.measured;
       lines.push(
-        `It already misses the goal with no faults, on seed ${m.seed}. ${effectSentence(m, goal, names)} ${goalLine(goal, m)}`,
+        `${t('It already misses the goal with no faults, on seed {seed}.', { seed: m.seed })} ${effectSentence(m, goal, names)} ${goalLine(goal, m)}`,
       );
       const why = failures(m.failuresByReason);
       if (why) lines.push(why);
-      if (m.truncated === true) lines.push(TRUNCATED_LINE);
+      if (m.truncated === true) lines.push(truncatedLine());
       if (verdict.first !== undefined && verdict.replay !== undefined) {
         lines.push(...evidence(verdict.first, verdict.replay, names));
       }
@@ -212,30 +229,46 @@ export async function breakDesign(
     case 'held': {
       if (verdict.tried === 0) {
         lines.push(
-          'Nothing was tried, so this is not a pass: with these options no fault can land anywhere in the design.',
+          t(
+            'Nothing was tried, so this is not a pass: with these options no fault can land anywhere in the design.',
+          ),
         );
         break;
       }
       lines.push(
-        `Held. Tried ${plural(verdict.tried, 'fault schedule', 'fault schedules')} over ${Math.round(verdict.simSeconds)} simulated seconds. ${triedLine(verdict.bySize)}`,
-        'Each fault started between 10s and 15s, and the goal was measured from 5s to 35s.',
+        getLocale() === 'zh'
+          ? `${t('Held. Tried {n} fault schedules over {s} simulated seconds.', { n: verdict.tried, s: Math.round(verdict.simSeconds) })} ${triedLine(verdict.bySize)}`
+          : `Held. Tried ${plural(verdict.tried, 'fault schedule', 'fault schedules')} over ${Math.round(verdict.simSeconds)} simulated seconds. ${triedLine(verdict.bySize)}`,
+        t(
+          'Each fault started between 10s and 15s, and the goal was measured from 5s to 35s.',
+        ),
       );
       if (verdict.stoppedBy === 'simSeconds') {
         lines.push(
-          `It stopped at this server's limit of ${limits.maxSimSeconds} simulated seconds.`,
+          t("It stopped at this server's limit of {n} simulated seconds.", {
+            n: limits.maxSimSeconds,
+          }),
         );
       } else if (verdict.stoppedBy === 'exhausted') {
-        lines.push('There were no more schedules to try with these options.');
+        lines.push(t('There were no more schedules to try with these options.'));
       } else if (verdict.tried < budget) {
         lines.push(
-          `That used the part of the budget these options allow: ${verdict.tried} of ${budget} schedules.` +
+          t(
+            'That used the part of the budget these options allow: {a} of {b} schedules.',
+            {
+              a: verdict.tried,
+              b: budget,
+            },
+          ) +
             (opts.maxFaults === 1
-              ? ' With maxFaults 2 or 3 the rest goes to faults together.'
+              ? t(' With maxFaults 2 or 3 the rest goes to faults together.')
               : ''),
         );
       } else if (budget < limits.maxBudget) {
         lines.push(
-          `That was the whole budget. Up to ${limits.maxBudget} schedules can be tried.`,
+          t('That was the whole budget. Up to {max} schedules can be tried.', {
+            max: limits.maxBudget,
+          }),
         );
       }
       if (verdict.nothingRetries === true) {
@@ -245,7 +278,7 @@ export async function breakDesign(
         lines.push(nothingRetriesLine(charged, names));
       }
       if (verdict.checked !== undefined) lines.push(checkedLine(goal, verdict.checked));
-      if (verdict.truncated === true) lines.push(TRUNCATED_LINE);
+      if (verdict.truncated === true) lines.push(truncatedLine());
       const c = verdict.closest;
       // closestLine's "yet" is for the panel's live progress; this answer is final.
       lines.push(
@@ -257,21 +290,28 @@ export async function breakDesign(
     }
     case 'broken': {
       const size = verdict.schedule.length;
+      const sizePhrase =
+        size === 1 ? 'one fault' : size === 2 ? 'two faults' : 'three faults';
       lines.push(
-        `Broke it with ${size === 1 ? 'one fault' : size === 2 ? 'two faults' : 'three faults'}, found on schedule ${verdict.tried}` +
-          (verdict.shrinkTried > 0
-            ? ` and made smaller in ${verdict.shrinkTried} more.`
-            : '.'),
+        getLocale() === 'zh'
+          ? `${t('Broke it with {size}, found on schedule {tried}', {
+              size: t(sizePhrase),
+              tried: verdict.tried,
+            })}${verdict.shrinkTried > 0 ? `，又用 ${verdict.shrinkTried} 次尝试把它缩小。` : '。'}`
+          : `Broke it with ${sizePhrase}, found on schedule ${verdict.tried}` +
+              (verdict.shrinkTried > 0
+                ? ` and made smaller in ${verdict.shrinkTried} more.`
+                : '.'),
         scheduleSentence(verdict.schedule, names),
         `${effectSentence(verdict.measured, goal, names)} ${goalLine(goal, verdict.measured)} ${baselineSentence(verdict.withoutFaults, goal, names)}`,
       );
       const why = failures(verdict.measured.failuresByReason);
       if (why) lines.push(why);
       lines.push(
-        `It broke on seed ${verdict.measured.seed} and on another seed too. ` +
+        `${t('It broke on seed {seed} and on another seed too. ', { seed: verdict.measured.seed })}` +
           (verdict.minimal
-            ? 'No smaller schedule breaks it.'
-            : 'A smaller schedule might still break it.'),
+            ? t('No smaller schedule breaks it.')
+            : t('A smaller schedule might still break it.')),
       );
       if (verdict.first !== undefined) {
         lines.push(...evidence(verdict.first, verdict.replay, names));
@@ -279,13 +319,18 @@ export async function breakDesign(
       try {
         lines.push(
           '',
-          `Replay link, which plays the same run on breakscale.tech: ${await buildShareUrl(verdict.replay, appUrl)}`,
+          t('Replay link, which plays the same run on breakscale.tech: {url}', {
+            url: await buildShareUrl(verdict.replay, appUrl),
+          }),
         );
       } catch (err) {
         if (!(err instanceof ShareLinkTooLargeError)) throw err;
         lines.push(
           '',
-          `The design is too large for a replay link. Passing it to create_view with seed ${verdict.measured.seed} and these faults plays the same run: ${JSON.stringify(verdict.faults)}`,
+          t(
+            'The design is too large for a replay link. Passing it to create_view with seed {seed} and these faults plays the same run: {faults}',
+            { seed: verdict.measured.seed, faults: JSON.stringify(verdict.faults) },
+          ),
         );
       }
       break;
@@ -294,14 +339,16 @@ export async function breakDesign(
 
   const points = singlePointLines(verdict.singlePoints, names);
   if (points.length > 0) {
-    lines.push('', 'Single points of failure:', ...points);
+    lines.push('', t('Single points of failure:'), ...points);
     if (
       !req.includeSinglePoints &&
       verdict.status !== 'alreadyBroken' &&
       !isCorrectnessGoal(verdict.goal)
     ) {
       lines.push(
-        'Losing one of these breaks any goal, so the search never crashed, failed or cut them whole. It could still slow them and take down single machines. includeSinglePoints true crashes and cuts them too.',
+        t(
+          'Losing one of these breaks any goal, so the search never crashed, failed or cut them whole. It could still slow them and take down single machines. includeSinglePoints true crashes and cuts them too.',
+        ),
       );
     }
   }

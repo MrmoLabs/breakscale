@@ -7,16 +7,20 @@ import {
   KIND_GROUPS,
   KIND_ICON,
   KIND_NAME,
+  KIND_TERM,
   NODE_DND_MIME,
 } from './nodeVisuals';
 import type { KindGroup } from './nodeVisuals';
 import { usePaletteCard } from './PaletteCard';
+import { GLOSSARY_BY_ID } from '../content/glossary';
+import { glossaryCopy } from '../i18n/content/glossary';
 import { usePreference } from '../content/preferences';
 import { useVendor } from '../content/vendors/useVendor';
 import { nameFor } from '../content/vendors/lookup';
 import type { Vendor } from '../content/vendors/types';
 import { ANN_DND_MIME } from './annotationLayout';
 import { rovingIndex } from './roving';
+import { t, getLocale } from '../i18n';
 import './Palette.css';
 
 /* ------------------------------------------------------------------ *
@@ -149,6 +153,11 @@ const ANN_ROWS: {
  * is for: someone who knows the problem they have but not what the
  * component is called.
  *
+ * The same words in either language count: the raw English strings above
+ * and what the rail actually renders (t) both go into the haystack, along
+ * with the glossary entry behind the kind (熔断 finds the breaker, 缓存
+ * finds the cache, through its translated definition and aliases).
+ *
  * Substring rather than fuzzy. A 33-item list is small enough that a
  * substring match is predictable, and predictability beats cleverness when
  * the result is "the thing you wanted is not on screen".
@@ -159,13 +168,23 @@ function matchesKind(
   needle: string,
   vendor: Vendor | null,
 ): boolean {
+  const glossaryEntry = GLOSSARY_BY_ID.get(KIND_TERM[kind]);
+  const copy = glossaryEntry ? glossaryCopy(glossaryEntry) : undefined;
   return (
     KIND_NAME[kind].toLowerCase().includes(needle) ||
+    t(KIND_NAME[kind]).toLowerCase().includes(needle) ||
     // The vendor name too, so someone who typed "RDS" finds the database
     // even though the concept is what the rail is organised by.
     nameFor(kind, vendor).toLowerCase().includes(needle) ||
     KIND_HINT[kind].toLowerCase().includes(needle) ||
-    group.title.toLowerCase().includes(needle)
+    t(KIND_HINT[kind]).toLowerCase().includes(needle) ||
+    group.title.toLowerCase().includes(needle) ||
+    t(group.title).toLowerCase().includes(needle) ||
+    (copy
+      ? copy.aliases.some((a) => a.toLowerCase().includes(needle)) ||
+        copy.short.toLowerCase().includes(needle) ||
+        copy.why.toLowerCase().includes(needle)
+      : false)
   );
 }
 
@@ -350,6 +369,8 @@ export function Palette({ onAdd, onAddAnnotation, armedTool }: PaletteProps) {
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement | null>(null);
   const needle = query.trim().toLowerCase();
+  // Read per render so a language switch can re-filter an active query.
+  const locale = getLocale();
 
   /**
    * The groups with non-matching kinds removed, and empty groups dropped.
@@ -364,7 +385,9 @@ export function Palette({ onAdd, onAddAnnotation, armedTool }: PaletteProps) {
       ...g,
       kinds: g.kinds.filter((k) => matchesKind(k, g, needle, vendor)),
     })).filter((g) => g.kinds.length > 0);
-  }, [needle, vendor]);
+    // The locale joins the deps so switching language re-filters an active
+    // query: matchesKind reads the translated aliases and definitions.
+  }, [needle, vendor, locale]);
 
   const matchCount = useMemo(
     () => groups.reduce((n, g) => n + g.kinds.length, 0),
@@ -459,7 +482,7 @@ export function Palette({ onAdd, onAddAnnotation, armedTool }: PaletteProps) {
   const tabRow = active !== null && rowKeys.includes(active) ? active : rowKeys[0];
 
   return (
-    <nav className="pal" aria-label="Components and examples">
+    <nav className="pal" aria-label={t('Components and examples')}>
       <div className="pal-scroll scroll">
         {/* Not a disclosure. The rail itself already hides and shows with one
             button and a keyboard shortcut, so wrapping its only remaining
@@ -471,9 +494,11 @@ export function Palette({ onAdd, onAddAnnotation, armedTool }: PaletteProps) {
             disclosure in a 224px rail is a filing cabinet, not a tool. */}
         <div className="pal-section">
           <p className="label pal-heading">
-            Components{' '}
+            {t('Components')}{' '}
             <span className="pal-heading-count">
-              {needle ? `${matchCount} of ${totalKinds}` : totalKinds}
+              {needle
+                ? t('{n} of {total}', { n: matchCount, total: totalKinds })
+                : totalKinds}
             </span>
           </p>
 
@@ -501,8 +526,8 @@ export function Palette({ onAdd, onAddAnnotation, armedTool }: PaletteProps) {
               ref={searchRef}
               type="search"
               className="pal-search-input"
-              placeholder="Search"
-              aria-label="Search components"
+              placeholder={t('Search')}
+              aria-label={t('Search components')}
               value={query}
               onChange={onSearchChange}
               onKeyDown={onSearchKeyDown}
@@ -511,7 +536,7 @@ export function Palette({ onAdd, onAddAnnotation, armedTool }: PaletteProps) {
               <button
                 type="button"
                 className="pal-search-clear"
-                aria-label="Clear search"
+                aria-label={t('Clear search')}
                 onClick={() => {
                   setQuery('');
                   searchRef.current?.focus();
@@ -538,16 +563,20 @@ export function Palette({ onAdd, onAddAnnotation, armedTool }: PaletteProps) {
               did anything. */}
           <p className="sr-only" role="status">
             {needle
-              ? `${matchCount} of ${totalKinds} components match ${query.trim()}`
+              ? t('{n} of {total} components match {query}', {
+                  n: matchCount,
+                  total: totalKinds,
+                  query: query.trim(),
+                })
               : ''}
           </p>
 
           {needle && matchCount === 0 && (
             <p className="pal-empty">
-              Nothing matches {'\u201c'}
-              {query.trim()}
-              {'\u201d'}. Searching what a component does works too, like {'\u201c'}
-              stale{'\u201d'} or {'\u201c'}refuse{'\u201d'}.
+              {t(
+                'Nothing matches “{query}”. Searching what a component does works too, like “stale” or “refuse”.',
+                { query: query.trim() },
+              )}
             </p>
           )}
 
@@ -563,7 +592,7 @@ export function Palette({ onAdd, onAddAnnotation, armedTool }: PaletteProps) {
           >
             {groups.map((group) => (
               <div className="pal-group" key={group.id}>
-                <p className="label pal-group-title">{group.title}</p>
+                <p className="label pal-group-title">{t(group.title)}</p>
                 <ul className="pal-list">
                   {group.kinds.map((kind) => (
                     /*
@@ -595,7 +624,7 @@ export function Palette({ onAdd, onAddAnnotation, armedTool }: PaletteProps) {
                           onAdd(kind);
                         }}
                         onKeyDown={(e) => onRowKeyDown(e, kind)}
-                        title={hintsOn ? undefined : KIND_HINT[kind]}
+                        title={hintsOn ? undefined : t(KIND_HINT[kind])}
                       >
                         <span className="pal-glyph">
                           <Glyph kind={kind} />
@@ -607,7 +636,7 @@ export function Palette({ onAdd, onAddAnnotation, armedTool }: PaletteProps) {
                           names, which is worse than useless in a rail whose
                           job is telling components apart. */}
                         <span className="pal-names">
-                          <span className="pal-name">{KIND_NAME[kind]}</span>
+                          <span className="pal-name">{t(KIND_NAME[kind])}</span>
                           {vendor && nameFor(kind, vendor) !== KIND_NAME[kind] && (
                             <span className="pal-vendor">{nameFor(kind, vendor)}</span>
                           )}
@@ -628,7 +657,7 @@ export function Palette({ onAdd, onAddAnnotation, armedTool }: PaletteProps) {
           */}
             {onAddAnnotation && (
               <div className="pal-group">
-                <p className="label pal-group-title">Annotate</p>
+                <p className="label pal-group-title">{t('Annotate')}</p>
                 <ul className="pal-list">
                   {ANN_ROWS.map((row) => (
                     <li key={row.tool} className="pal-item">
@@ -648,7 +677,7 @@ export function Palette({ onAdd, onAddAnnotation, armedTool }: PaletteProps) {
                             onAddAnnotation(row.tool);
                           }
                         }}
-                        title={row.hint}
+                        title={t(row.hint)}
                       >
                         <span className="pal-glyph">
                           <svg
@@ -668,7 +697,7 @@ export function Palette({ onAdd, onAddAnnotation, armedTool }: PaletteProps) {
                             ))}
                           </svg>
                         </span>
-                        <span className="pal-name">{row.name}</span>
+                        <span className="pal-name">{t(row.name)}</span>
                       </button>
                     </li>
                   ))}

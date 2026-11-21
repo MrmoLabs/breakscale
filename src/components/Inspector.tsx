@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
  * side-effect-free so the build keeps only these four.
  */
 import { Info, Minus, Pause, Play, Plus, RotateCcw, StepForward } from 'lucide-react';
+import { t, tN } from '../i18n';
 import { cycleSpeed, formatSpeed, type Speed } from '../speed';
 import { useCoarsePointer } from '../useCoarsePointer';
 import type {
@@ -53,6 +54,7 @@ import { HintLine } from './HintLine';
 import { readoutFor } from './Canvas';
 import { readoutTermFor } from './readoutTerms';
 import { GLOSSARY_BY_ID } from '../content/glossary';
+import { glossaryCopy } from '../i18n/content/glossary';
 import { VendorPanel } from './VendorPanel';
 import {
   EdgeFaultControls,
@@ -580,22 +582,29 @@ type FieldSpec = SliderSpec | NumberSpec | ChoiceSpec;
 /**
  * One line per traffic shape. Spike says half, because it is: 90% of the
  * cycle at a tenth of the load and 10% at 4x averages 0.49x.
+ *
+ * Each entry is a thunk, not a value, so `t()` runs when the hint renders
+ * and a language switched mid-session reads in the new language.
  */
-const TRAFFIC_HINT: Readonly<Record<string, ReactNode>> = {
-  steady: 'The same rate the whole time.',
-  ramp: 'Climbs from nothing to the full rate over one cycle, then holds.',
-  spike: 'Quiet, then 4× for a moment. The average is about half the offered load.',
-  diurnal:
-    'A quiet night and a busy afternoon, from a quarter of the rate to twice it.',
-  bursty: (
+const TRAFFIC_HINT: Readonly<Record<string, () => ReactNode>> = {
+  steady: () => t('The same rate the whole time.'),
+  ramp: () => t('Climbs from nothing to the full rate over one cycle, then holds.'),
+  spike: () =>
+    t('Quiet, then 4× for a moment. The average is about half the offered load.'),
+  diurnal: () =>
+    t('A quiet night and a busy afternoon, from a quarter of the rate to twice it.'),
+  bursty: () => (
     <>
-      Same average, but requests come in <Term id="bursty-traffic">clumps</Term>.
+      {t('Same average, but requests come in ')}
+      <Term id="bursty-traffic">{t('clumps')}</Term>
+      {t('.')}
     </>
   ),
-  herd: (
+  herd: () => (
     <>
-      Once a cycle, a <Term id="thundering-herd">herd</Term> of callers piles in on top
-      of the normal rate.
+      {t('Once a cycle, a ')}
+      <Term id="thundering-herd">{t('herd')}</Term>
+      {t(' of callers piles in on top of the normal rate.')}
     </>
   ),
 };
@@ -630,15 +639,22 @@ function shownFields(kind: NodeKind, config: NodeConfig): readonly Field[] {
 
 /** A hint that depends on the rest of the node's config, where one applies. */
 function contextHint(field: Field, config: NodeConfig): string | undefined {
-  if (field === 'trafficPeriodS') return PERIOD_HINT[config.traffic ?? 'steady'];
+  if (field === 'trafficPeriodS') {
+    const hint = PERIOD_HINT[config.traffic ?? 'steady'];
+    return hint ? t(hint) : undefined;
+  }
   if (field === 'herdSize') {
     const size = config.herdSize ?? DEFAULT_HERD_SIZE;
     if (!(config.rps > 0) || !(size > 0)) return undefined;
     const seconds = size / config.rps;
     const said = seconds < 10 ? seconds.toFixed(1) : formatCount(Math.round(seconds));
     const spreadMs = effectiveHerdSpreadMs(config);
-    const when = spreadMs > 0 ? `within ${formatMs(spreadMs)}` : 'in one instant';
-    return `That is ${said} seconds of normal traffic arriving ${when}.`;
+    const when =
+      spreadMs > 0 ? t('within {ms}', { ms: formatMs(spreadMs) }) : t('in one instant');
+    return t('That is {said} seconds of normal traffic arriving {when}.', {
+      said,
+      when,
+    });
   }
   return undefined;
 }
@@ -711,7 +727,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 2,
     step: 0.05,
-    display: (v) => (v === 0 ? 'every one the same' : v.toFixed(2)),
+    display: (v) => (v === 0 ? t('every one the same') : v.toFixed(2)),
   },
   queueLimit: {
     control: 'number',
@@ -751,7 +767,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 5000,
     step: 10,
-    display: (v) => (v === 0 ? 'none' : formatMs(v)),
+    display: (v) => (v === 0 ? t('none') : formatMs(v)),
   },
   retries: {
     control: 'number',
@@ -780,7 +796,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 2000,
     step: 5,
-    display: (v) => (v === 0 ? 'synchronous' : formatMs(v)),
+    display: (v) => (v === 0 ? t('synchronous') : formatMs(v)),
   },
   readFraction: {
     control: 'slider',
@@ -820,11 +836,14 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: MAX_KEY_SKEW,
     step: 0.1,
-    display: (v) => (v <= 0 ? 'even' : `skew ${v.toFixed(1)}`),
+    display: (v) => (v <= 0 ? t('even') : t('skew {v}', { v: v.toFixed(1) })),
     liveHint: (v) =>
       v <= 0
-        ? 'Every one of the 64 keys is equally likely, about 1.6% of requests each.'
-        : `The hottest of the 64 keys gets ${formatPct(hottestKeyShare(v))} of requests, and a sharded store sends all of them to one partition.`,
+        ? t('Every one of the 64 keys is equally likely, about 1.6% of requests each.')
+        : t(
+            'The hottest of the 64 keys gets {share} of requests, and a sharded store sends all of them to one partition.',
+            { share: formatPct(hottestKeyShare(v)) },
+          ),
   },
   traffic: {
     control: 'choice',
@@ -839,7 +858,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
       { value: 'bursty', label: 'Bursty' },
       { value: 'herd', label: 'Thundering herd' },
     ],
-    liveHint: (v) => TRAFFIC_HINT[v] ?? TRAFFIC_HINT.steady,
+    liveHint: (v) => (TRAFFIC_HINT[v] ?? TRAFFIC_HINT.steady)(),
   },
   trafficPeriodS: {
     control: 'number',
@@ -857,7 +876,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 2,
     max: MAX_BURST_SIZE,
     step: 1,
-    display: (v) => `${formatCount(v)} at once`,
+    display: (v) => t('{n} at once', { n: formatCount(v) }),
     hint: 'Clumps come further apart, so the average rate stays the same.',
   },
   herdSize: {
@@ -877,11 +896,14 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: MAX_HERD_SPREAD_MS,
     step: 100,
-    display: (v) => (v <= 0 ? 'all at once' : formatMs(v)),
+    display: (v) => (v <= 0 ? t('all at once') : formatMs(v)),
     liveHint: (v) =>
       v <= 0
-        ? 'Every caller fires in the same millisecond.'
-        : `Each caller first waits a random delay of up to ${formatMs(v)}, so the herd arrives spread out.`,
+        ? t('Every caller fires in the same millisecond.')
+        : t(
+            'Each caller first waits a random delay of up to {ms}, so the herd arrives spread out.',
+            { ms: formatMs(v) },
+          ),
   },
   hotKeyFraction: {
     control: 'slider',
@@ -891,7 +913,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 1,
     step: 0.01,
-    display: (v) => (v === 0 ? 'even' : formatPct(v)),
+    display: (v) => (v === 0 ? t('even') : formatPct(v)),
   },
   targetUtil: {
     control: 'slider',
@@ -946,7 +968,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 60000,
     step: 500,
-    display: (v) => (v === 0 ? 'instant' : formatMs(v)),
+    display: (v) => (v === 0 ? t('instant') : formatMs(v)),
   },
   regions: {
     control: 'number',
@@ -977,7 +999,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 60000,
     step: 500,
-    display: (v) => (v === 0 ? 'instant' : formatMs(v)),
+    display: (v) => (v === 0 ? t('instant') : formatMs(v)),
   },
   rateLimitRps: {
     control: 'slider',
@@ -987,7 +1009,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 2000,
     step: 5,
-    display: (v) => (v === 0 ? 'unlimited' : formatRate(Math.round(v))),
+    display: (v) => (v === 0 ? t('unlimited') : formatRate(Math.round(v))),
   },
   burst: {
     control: 'number',
@@ -1044,7 +1066,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 500,
     step: 5,
-    display: (v) => (v === 0 ? 'free' : `+${formatMs(v)}`),
+    display: (v) => (v === 0 ? t('free') : `+${formatMs(v)}`),
   },
   indexLagMs: {
     control: 'slider',
@@ -1055,7 +1077,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 10000,
     step: 100,
-    display: (v) => (v === 0 ? 'instantly' : formatMs(v)),
+    display: (v) => (v === 0 ? t('instantly') : formatMs(v)),
   },
   rangeQueryFraction: {
     control: 'slider',
@@ -1065,7 +1087,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 1,
     step: 0.01,
-    display: (v) => (v === 0 ? 'appends only' : formatPct(v)),
+    display: (v) => (v === 0 ? t('appends only') : formatPct(v)),
   },
   rangeQueryMs: {
     control: 'slider',
@@ -1076,7 +1098,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 2000,
     step: 10,
-    display: (v) => (v === 0 ? 'free' : `+${formatMs(v)}`),
+    display: (v) => (v === 0 ? t('free') : `+${formatMs(v)}`),
   },
   traversalDepth: {
     control: 'number',
@@ -1097,8 +1119,8 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     step: 1,
     display: (v) =>
       v >= 1000
-        ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}M vectors`
-        : `${Math.round(v)}K vectors`,
+        ? t('{n}M vectors', { n: (v / 1000).toFixed(v >= 10000 ? 0 : 1) })
+        : t('{n}K vectors', { n: Math.round(v) }),
   },
   recallTarget: {
     control: 'slider',
@@ -1158,7 +1180,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 5000,
     step: 25,
-    display: (v) => (v === 0 ? 'free' : formatMs(v)),
+    display: (v) => (v === 0 ? t('free') : formatMs(v)),
   },
   keepWarmMs: {
     control: 'slider',
@@ -1169,7 +1191,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 60000,
     step: 500,
-    display: (v) => (v === 0 ? 'reclaim at once' : formatMs(v)),
+    display: (v) => (v === 0 ? t('reclaim at once') : formatMs(v)),
   },
   maxConcurrency: {
     control: 'number',
@@ -1244,7 +1266,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 10000,
     step: 50,
-    display: (v) => (v === 0 ? 'instant flush' : formatMs(v)),
+    display: (v) => (v === 0 ? t('instant flush') : formatMs(v)),
   },
   edgeShare: {
     control: 'slider',
@@ -1287,7 +1309,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 100,
     step: 1,
-    display: (v) => (v === 0 ? 'no contention' : formatMs(v)),
+    display: (v) => (v === 0 ? t('no contention') : formatMs(v)),
   },
   prefixRps: {
     control: 'slider',
@@ -1298,7 +1320,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 1000,
     step: 10,
-    display: (v) => (v === 0 ? 'no limit' : `${v}/s`),
+    display: (v) => (v === 0 ? t('no limit') : `${v}/s`),
   },
   renditions: {
     control: 'number',
@@ -1319,7 +1341,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     min: 0,
     max: 50,
     step: 0.5,
-    display: (v) => (v === 0 ? 'no budget' : formatMs(v)),
+    display: (v) => (v === 0 ? t('no budget') : formatMs(v)),
   },
 };
 
@@ -1498,8 +1520,10 @@ function fillPct(value: number, min: number, max: number): string {
  */
 function lockNoteFor(kind: NodeKind): string {
   return kind === 'client'
-    ? 'Fixed for this challenge: it is how the people sending requests behave, not part of your design.'
-    : 'Fixed for this challenge: it describes the work, not your design.';
+    ? t(
+        'Fixed for this challenge: it is how the people sending requests behave, not part of your design.',
+      )
+    : t('Fixed for this challenge: it describes the work, not your design.');
 }
 
 function SliderRow({
@@ -1525,10 +1549,10 @@ function SliderRow({
     <div className={locked ? 'ins-field is-locked' : 'ins-field'}>
       <div className="ins-field-head">
         <label className="row-k" htmlFor={id}>
-          {spec.term ? <Term id={spec.term}>{spec.label}</Term> : spec.label}
+          {spec.term ? <Term id={spec.term}>{t(spec.label)}</Term> : t(spec.label)}
         </label>
         <span className={mixed ? 'row-v ins-mixed' : 'row-v'}>
-          {mixed ? 'mixed' : spec.display(value)}
+          {mixed ? t('mixed') : spec.display(value)}
         </span>
       </div>
       <input
@@ -1548,19 +1572,19 @@ function SliderRow({
           } as React.CSSProperties
         }
         aria-describedby={`${id}-u`}
-        aria-valuetext={mixed ? 'mixed' : spec.display(value)}
+        aria-valuetext={mixed ? t('mixed') : spec.display(value)}
         disabled={locked !== undefined}
         onChange={(e) => onChange(Number(e.currentTarget.value))}
       />
       <span id={`${id}-u`} className="sr-only">
-        {spec.unit}
+        {t(spec.unit)}
       </span>
       {locked ? (
         <p className="ins-hint">{locked}</p>
       ) : spec.liveHint && !mixed ? (
         <HintLine text={spec.liveHint(value)} about={spec.label} />
       ) : spec.hint ? (
-        <HintLine text={spec.hint} about={spec.label} />
+        <HintLine text={t(spec.hint)} about={spec.label} />
       ) : null}
     </div>
   );
@@ -1611,7 +1635,7 @@ function NumberRow({
     const next = clamp(value + dir * spec.step * (big ? 10 : 1));
     if (next !== value) onChange(next);
   };
-  const label = spec.term ? <Term id={spec.term}>{spec.label}</Term> : spec.label;
+  const label = spec.term ? <Term id={spec.term}>{t(spec.label)}</Term> : t(spec.label);
   return (
     <div
       className={
@@ -1690,7 +1714,7 @@ function NumberRow({
             type="button"
             className="ins-step"
             tabIndex={-1}
-            aria-label={`Decrease ${spec.label}`}
+            aria-label={t('Decrease {field}', { field: t(spec.label) })}
             disabled={disabled || value <= spec.min}
             onClick={(e) => nudge(-1, e.shiftKey)}
           >
@@ -1714,7 +1738,7 @@ function NumberRow({
             max={spec.max}
             step={spec.step}
             value={draft ?? value}
-            placeholder={mixed ? 'mixed' : undefined}
+            placeholder={mixed ? t('mixed') : undefined}
             data-mixed={mixed || undefined}
             disabled={disabled}
             onChange={(e) => {
@@ -1752,19 +1776,19 @@ function NumberRow({
             type="button"
             className="ins-step"
             tabIndex={-1}
-            aria-label={`Increase ${spec.label}`}
+            aria-label={t('Increase {field}', { field: t(spec.label) })}
             disabled={disabled || value >= spec.max}
             onClick={(e) => nudge(1, e.shiftKey)}
           >
             <Plus size={14} strokeWidth={2} aria-hidden="true" />
           </button>
         </span>
-        <span className="label ins-unit">{spec.unit}</span>
+        <span className="label ins-unit">{t(spec.unit)}</span>
       </span>
       {locked ? (
         <p className="ins-hint">{locked}</p>
       ) : hint ? (
-        <HintLine text={hint} about={spec.label} />
+        <HintLine text={t(hint)} about={spec.label} />
       ) : null}
     </div>
   );
@@ -1792,7 +1816,7 @@ function ChoiceRow({
   return (
     <div className={locked ? 'ins-field-row is-locked' : 'ins-field-row'}>
       <label className="row-k" htmlFor={id}>
-        {spec.term ? <Term id={spec.term}>{spec.label}</Term> : spec.label}
+        {spec.term ? <Term id={spec.term}>{t(spec.label)}</Term> : t(spec.label)}
       </label>
       <select
         id={id}
@@ -1805,12 +1829,12 @@ function ChoiceRow({
         {/* Shown, not choosable: picking a real option is what unmixes it. */}
         {mixed ? (
           <option value={MIXED_CHOICE} disabled>
-            mixed
+            {t('mixed')}
           </option>
         ) : null}
         {spec.options.map((option) => (
           <option key={option.value} value={option.value}>
-            {option.label}
+            {t(option.label)}
           </option>
         ))}
       </select>
@@ -1819,7 +1843,7 @@ function ChoiceRow({
       ) : spec.liveHint && !mixed ? (
         <HintLine text={spec.liveHint(value)} about={spec.label} />
       ) : spec.hint ? (
-        <HintLine text={spec.hint} about={spec.label} />
+        <HintLine text={t(spec.hint)} about={spec.label} />
       ) : null}
     </div>
   );
@@ -1852,7 +1876,9 @@ function StatRow({
 }) {
   return (
     <div className="ins-stat">
-      <span className="row-k">{term ? <Term id={term}>{label}</Term> : label}</span>
+      <span className="row-k">
+        {term ? <Term id={term}>{t(label)}</Term> : t(label)}
+      </span>
       <span className={tone ? `row-v ${tone}` : 'row-v'}>{value}</span>
     </div>
   );
@@ -1926,12 +1952,13 @@ function ToggleRow({
  */
 function KindWhat({ kind }: { kind: NodeKind }) {
   const id = KIND_TERM[kind];
-  const what = GLOSSARY_BY_ID.get(id)?.intro?.what;
+  const entry = GLOSSARY_BY_ID.get(id);
+  const what = entry ? glossaryCopy(entry).intro?.what : undefined;
   const noteId = useId();
   if (!what) {
     return (
       <p className="ins-blurb">
-        <Term id={id}>{KIND_NAME[kind]}</Term>. {KIND_BLURB[kind]}
+        <Term id={id}>{t(KIND_NAME[kind])}</Term>. {t(KIND_BLURB[kind])}
       </p>
     );
   }
@@ -1944,21 +1971,21 @@ function KindWhat({ kind }: { kind: NodeKind }) {
         <button
           type="button"
           className="ins-learn"
-          aria-label={`Learn more about ${KIND_NAME[kind]}`}
+          aria-label={t('Learn more about {name}', { name: t(KIND_NAME[kind]) })}
           onClick={() => openGlossaryEntry(id)}
         >
-          Learn more
+          {t('Learn more')}
         </button>{' '}
         <button
           type="button"
           className="ins-more-btn"
-          aria-label={`How ${KIND_NAME[kind]} behaves here`}
+          aria-label={t('How {name} behaves here', { name: t(KIND_NAME[kind]) })}
           aria-describedby={noteId}
         >
           <Info size={14} strokeWidth={2} aria-hidden="true" />
         </button>
         <span id={noteId} role="tooltip" className="ins-more-pop">
-          {KIND_BLURB[kind]}
+          {t(KIND_BLURB[kind])}
         </span>
       </span>
     </p>
@@ -1968,7 +1995,7 @@ function KindWhat({ kind }: { kind: NodeKind }) {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="ins-section">
-      <h2 className="label ins-section-title">{title}</h2>
+      <h2 className="label ins-section-title">{t(title)}</h2>
       {children}
     </section>
   );
@@ -1997,7 +2024,7 @@ function Meter({
     <div
       className={tone ? `ins-meter ${tone}` : 'ins-meter'}
       role="img"
-      aria-label={`${label} ${formatPct(value)}`}
+      aria-label={`${t(label)} ${formatPct(value)}`}
     >
       <div className="ins-meter-fill" style={{ width: `${pct}%` }} />
     </div>
@@ -2048,7 +2075,7 @@ function VitalsMeter({
         <div className="ins-util">
           <div className="ins-util-head">
             <span className="label">
-              <Term id="rate-limiter">Tokens left</Term>
+              <Term id="rate-limiter">{t('Tokens left')}</Term>
             </span>
             <span className={tone ? `num num-md ${tone}` : 'num num-md'}>
               {formatCount(tokens)} / {formatCount(burst)}
@@ -2070,7 +2097,7 @@ function VitalsMeter({
         <div className="ins-util">
           <div className="ins-util-head">
             <span className="label">
-              <Term id="bulkhead">Pool in use</Term>
+              <Term id="bulkhead">{t('Pool in use')}</Term>
             </span>
             <span className={tone ? `num num-md ${tone}` : 'num num-md'}>
               {formatCount(used)} / {formatCount(limit)}
@@ -2091,7 +2118,7 @@ function VitalsMeter({
         <div className="ins-util">
           <div className="ins-util-head">
             <span className="label">
-              <Term id="consumer-lag">Worst lag vs retention</Term>
+              <Term id="consumer-lag">{t('Worst lag vs retention')}</Term>
             </span>
             <span className={tone ? `num num-md ${tone}` : 'num num-md'}>
               {formatCount(lag)} / {formatCount(retention)}
@@ -2112,7 +2139,7 @@ function VitalsMeter({
         <div className="ins-util">
           <div className="ins-util-head">
             <span className="label">
-              <Term id="connection-slot">Connections held</Term>
+              <Term id="connection-slot">{t('Connections held')}</Term>
             </span>
             <span className={tone ? `num num-md ${tone}` : 'num num-md'}>
               {formatCount(open)} / {formatCount(max)}
@@ -2130,7 +2157,7 @@ function VitalsMeter({
         <div className="ins-util">
           <div className="ins-util-head">
             <span className="label">
-              <Term id="utilisation">How busy it is</Term>
+              <Term id="utilisation">{t('How busy it is')}</Term>
             </span>
             <span className={tone ? `num num-md ${tone}` : 'num num-md'}>
               {formatPct(util)}
@@ -2166,18 +2193,18 @@ function BoxKey({
     if (!label || rows.some((row) => row.label === label)) continue;
     const id = readoutTermFor(kind, label);
     const entry = id ? GLOSSARY_BY_ID.get(id) : undefined;
-    if (id && entry) rows.push({ label, id, short: entry.short });
+    if (id && entry) rows.push({ label, id, short: glossaryCopy(entry).short });
   }
   if (rows.length === 0) return null;
   return (
     <div className="ins-box-key">
-      <p className="label">On the diagram</p>
+      <p className="label">{t('On the diagram')}</p>
       <dl>
         {rows.map((row) => (
           <div key={row.label} className="ins-box-key-row">
             <dt>
               <Term id={row.id} bare>
-                {row.label}
+                {t(row.label)}
               </Term>
             </dt>
             <dd>{row.short}</dd>
@@ -2202,8 +2229,9 @@ function CronPanel({ stats }: { stats: NodeStats }) {
         <StatRow label="Sent since start" value={formatCount(stats.batchEmitted)} />
       </div>
       <p className="ins-hint">
-        Between firings it does nothing at all. The whole batch lands downstream in the
-        same instant, which is exactly what makes it dangerous.
+        {t(
+          'Between firings it does nothing at all. The whole batch lands downstream in the same instant, which is exactly what makes it dangerous.',
+        )}
       </p>
     </Section>
   );
@@ -2223,12 +2251,15 @@ function RegionPanel({ stats }: { stats: NodeStats }) {
       <div className="ins-stats">
         <StatRow
           label="Serving from"
-          value={dark ? 'nowhere' : `region ${stats.activeRegion ?? 0}`}
+          value={dark ? t('nowhere') : t('region {n}', { n: stats.activeRegion ?? 0 })}
           tone={dark ? 'is-danger' : undefined}
         />
         <StatRow
           label="Regions healthy"
-          value={`${formatCount(healthy)} of ${formatCount(total)}`}
+          value={t('{have} of {total}', {
+            have: formatCount(healthy),
+            total: formatCount(total),
+          })}
           tone={healthy === 0 ? 'is-danger' : healthy < total ? 'is-warn' : undefined}
         />
         {dark && (
@@ -2241,8 +2272,9 @@ function RegionPanel({ stats }: { stats: NodeStats }) {
       </div>
       {dark && (
         <p className="ins-hint is-danger">
-          Mid-failover: every request arriving right now fails. This window is what
-          failover costs, and it is never free.
+          {t(
+            'Mid-failover: every request arriving right now fails. This window is what failover costs, and it is never free.',
+          )}
         </p>
       )}
     </Section>
@@ -2830,19 +2862,21 @@ export function Inspector({
      rather than claiming the canvas selection is empty when it is not. */
   if (nodes.length === 0) {
     return (
-      <aside className="ins" aria-label="Inspector">
+      <aside className="ins" aria-label={t('Inspector')}>
         <div className="ins-scroll scroll">
           {selectedEdgeCount > 0 ? (
             <>
               <p className="ins-empty">
                 {selectedEdgeCount === 1
-                  ? '1 connection selected.'
-                  : `${selectedEdgeCount} connections selected.`}
+                  ? t('1 connection selected.')
+                  : t('{n} connections selected.', { n: selectedEdgeCount })}
               </p>
               {faults?.edge && selectedEdgeCount === 1 ? (
                 <>
                   <p className="ins-empty ins-empty-hint">
-                    {faults.edge.label}. Press Delete to remove it.
+                    {t('{label}. Press Delete to remove it.', {
+                      label: faults.edge.label,
+                    })}
                   </p>
                   {onEdgeLoss ? (
                     <Section title="Packet loss">
@@ -2881,13 +2915,15 @@ export function Inspector({
                 </>
               ) : (
                 <p className="ins-empty ins-empty-hint">
-                  Connections have nothing to configure. Press Delete to remove them.
+                  {t(
+                    'Connections have nothing to configure. Press Delete to remove them.',
+                  )}
                 </p>
               )}
             </>
           ) : (
             <p className="ins-empty">
-              Select a component on the canvas and its settings will appear here.
+              {t('Select a component on the canvas and its settings will appear here.')}
             </p>
           )}
         </div>
@@ -2969,19 +3005,23 @@ function AutoscalerPanel({ stats }: { stats: NodeStats }) {
      time, because it is the only one that is not waiting for anything. */
   const phaseText =
     phase === 'observing'
-      ? `Still measuring. It will not act for another ${secs}s.`
+      ? t('Still measuring. It will not act for another {secs}s.', { secs })
       : phase === 'warming'
-        ? `${formatCount(booting)} more booting. They start serving in ${secs}s.`
+        ? t('{n} more booting. They start serving in {secs}s.', {
+            n: formatCount(booting),
+            secs,
+          })
         : phase === 'cooldown'
-          ? `Just acted. It will not act again for ${secs}s.`
-          : 'Holding steady. Load does not call for a change.';
+          ? t('Just acted. It will not act again for {secs}s.', { secs })
+          : t('Holding steady. Load does not call for a change.');
 
   if (!watching) {
     return (
       <Section title="What it is doing">
         <p className="ins-blurb">
-          Not wired to anything yet. Draw a connection from this autoscaler to the
-          component it should scale, and it will start watching it.
+          {t(
+            'Not wired to anything yet. Draw a connection from this autoscaler to the component it should scale, and it will start watching it.',
+          )}
         </p>
       </Section>
     );
@@ -2997,8 +3037,11 @@ function AutoscalerPanel({ stats }: { stats: NodeStats }) {
     return (
       <Section title="What it is doing">
         <p className="ins-blurb">
-          Watching <strong>{watching}</strong>, which has no instances to add or remove.
-          This autoscaler cannot help it.
+          {t('Watching ')}
+          <strong>{watching}</strong>
+          {t(
+            ', which has no instances to add or remove. This autoscaler cannot help it.',
+          )}
         </p>
         <div className="ins-stats">
           <StatRow
@@ -3008,9 +3051,9 @@ function AutoscalerPanel({ stats }: { stats: NodeStats }) {
           />
         </div>
         <p className="ins-hint">
-          A managed store is one logical service rather than a pool of machines, so
-          there is no fleet to grow. If it is overloaded, the answer is spreading the
-          load across its keyspace rather than adding capacity.
+          {t(
+            'A managed store is one logical service rather than a pool of machines, so there is no fleet to grow. If it is overloaded, the answer is spreading the load across its keyspace rather than adding capacity.',
+          )}
         </p>
       </Section>
     );
@@ -3019,8 +3062,10 @@ function AutoscalerPanel({ stats }: { stats: NodeStats }) {
   return (
     <Section title="What it is doing">
       <p className="ins-blurb">
-        Watching <strong>{watching}</strong>, aiming to keep it at{' '}
-        <strong>{formatPct(setpoint)}</strong> busy.
+        {t('Watching ')}
+        <strong>{watching}</strong>
+        {t(', aiming to keep it at')} <strong>{formatPct(setpoint)}</strong>
+        {t(' busy.')}
       </p>
       <div className="ins-stats">
         <StatRow
@@ -3192,16 +3237,17 @@ function ReplicaSetSection({ per, stats }: { per: number[]; stats: NodeStats }) 
       </div>
       <div className="ins-hint-stack">
         <p className="ins-hint is-warn" data-active={hint === 'write-bound'}>
-          The primary is the bottleneck, not the replicas. Adding more read replicas
-          will not help; every write still goes through the one primary
+          {t(
+            'The primary is the bottleneck, not the replicas. Adding more read replicas will not help; every write still goes through the one primary',
+          )}
           {freshReads
-            ? ', and so do the reads sent to it while the copies are behind.'
-            : '.'}
+            ? t(', and so do the reads sent to it while the copies are behind.')
+            : t('.')}
         </p>
         <p className="ins-hint" data-active={hint === 'stale'}>
-          Some reads are answered by a replica that has not caught up with the latest
-          write yet. Lower the replication lag, or send those reads to the primary under
-          Correctness.
+          {t(
+            'Some reads are answered by a replica that has not caught up with the latest write yet. Lower the replication lag, or send those reads to the primary under Correctness.',
+          )}
         </p>
       </div>
     </Section>
@@ -3257,15 +3303,17 @@ function UnitsPanel({ node, stats }: { node: SimNode; stats: NodeStats }) {
           keyShard !== undefined &&
           keyShare >= HOT_KEY_NOTE && (
             <p className="ins-hint">
-              One key is {formatPct(keyShare)} of the requests here, and all of them go
-              to partition {formatCount(keyShard + 1)}. More shards cannot split a
-              single key.
+              {t(
+                'One key is {share} of the requests here, and all of them go to partition {partition}. More shards cannot split a single key.',
+                { share: formatPct(keyShare), partition: formatCount(keyShard + 1) },
+              )}
             </p>
           )}
         {skewed && (
           <p className="ins-hint is-warn">
-            Badly uneven. One partition is doing most of the work while the others sit
-            idle. Adding shards will not help until the keys spread out.
+            {t(
+              'Badly uneven. One partition is doing most of the work while the others sit idle. Adding shards will not help until the keys spread out.',
+            )}
           </p>
         )}
       </Section>
@@ -3287,8 +3335,9 @@ function UnitsPanel({ node, stats }: { node: SimNode; stats: NodeStats }) {
       </div>
       {booting > 0 && (
         <p className="ins-hint is-warn">
-          These are not serving traffic yet. Requests can still fail while they boot;
-          that gap is why capacity always lags a spike.
+          {t(
+            'These are not serving traffic yet. Requests can still fail while they boot; that gap is why capacity always lags a spike.',
+          )}
         </p>
       )}
     </Section>
@@ -3317,7 +3366,7 @@ function QueuePanel({ stats }: { stats: NodeStats }) {
       <div className="ins-util">
         <div className="ins-util-head">
           <span className="label">
-            <Term id="backlog">How full it is</Term>
+            <Term id="backlog">{t('How full it is')}</Term>
           </span>
           <span className="num num-md">
             {formatCount(depth)} / {formatCount(limit)}
@@ -3330,12 +3379,15 @@ function QueuePanel({ stats }: { stats: NodeStats }) {
           message is visible; switching states never moves the panel below. */}
       <div className="ins-hint-stack">
         <p className="ins-hint is-danger" data-active={hint.state === 'shedding'}>
-          Full. It is turning away {formatRate(hint.shedRate)}. Work arriving now is
-          being destroyed, not delayed. The consumers cannot keep up.
+          {t(
+            'Full. It is turning away {rate}. Work arriving now is being destroyed, not delayed. The consumers cannot keep up.',
+            { rate: formatRate(hint.shedRate) },
+          )}
         </p>
         <p className="ins-hint" data-active={hint.state === 'queued'}>
-          Work is waiting here because the consumers are slower than the producers. It
-          drains once they catch up.
+          {t(
+            'Work is waiting here because the consumers are slower than the producers. It drains once they catch up.',
+          )}
         </p>
       </div>
     </Section>
@@ -3354,12 +3406,12 @@ function CopyActions({
     <>
       {onDuplicate ? (
         <button type="button" className="btn btn-ghost" onClick={onDuplicate}>
-          Duplicate
+          {t('Duplicate')}
         </button>
       ) : null}
       {onCopy ? (
         <button type="button" className="btn btn-ghost" onClick={onCopy}>
-          Copy
+          {t('Copy')}
         </button>
       ) : null}
     </>
@@ -3467,7 +3519,7 @@ function SingleInspector({
   })).filter((g) => g.fields.length > 0);
 
   return (
-    <aside className="ins" aria-label="Inspector">
+    <aside className="ins" aria-label={t('Inspector')}>
       <div className="ins-scroll scroll">
         <header className="ins-head">
           {/*
@@ -3482,7 +3534,7 @@ function SingleInspector({
             type="text"
             value={node.label}
             spellCheck={false}
-            aria-label="Node name"
+            aria-label={t('Node name')}
             onFocus={(e) => {
               labelAtFocusRef.current = e.currentTarget.value;
             }}
@@ -3514,7 +3566,7 @@ function SingleInspector({
               below always carries it. */}
           {node.label.trim().toLowerCase() !== KIND_NAME[node.kind].toLowerCase() && (
             <span className="label ins-kind">
-              <Term id={KIND_TERM[node.kind]}>{KIND_NAME[node.kind]}</Term>
+              <Term id={KIND_TERM[node.kind]}>{t(KIND_NAME[node.kind])}</Term>
             </span>
           )}
         </header>
@@ -3591,9 +3643,11 @@ function SingleInspector({
           <Section title="Correctness">
             <div className="ins-fields">
               <ToggleRow
-                label="Each finished call charges money"
+                label={t('Each finished call charges money')}
                 about="charging"
-                hint="Only the correctness checks in Can you break it? read this. It changes nothing about how the run plays."
+                hint={t(
+                  'Only the correctness checks in Can you break it? read this. It changes nothing about how the run plays.',
+                )}
                 checked={node.config.chargeable === 1}
                 locked={lockedFields?.includes('chargeable') ? lockNote : undefined}
                 onChange={(on) => onChange(node.id, { chargeable: on ? 1 : undefined })}
@@ -3601,12 +3655,14 @@ function SingleInspector({
               <ToggleRow
                 label={
                   <>
-                    Ignore repeats with an{' '}
-                    <Term id="idempotency-key">idempotency key</Term>
+                    {t('Ignore repeats with an ')}
+                    <Term id="idempotency-key">{t('idempotency key')}</Term>
                   </>
                 }
                 about="idempotency keys"
-                hint="Retries with the same key are answered from memory instead of charging again. Every request carries a key, the same on each retry. A key whose call succeeded here gets that answer again instead of doing the work twice. One still being worked on is refused, so the caller tries again, and one whose call failed is forgotten, so a retry does the work. Turn this on where the card is charged. On a part in front of it, a call that charged and then failed on the way back is forgotten, and the retry charges again. Keys are forgotten after 65,536 newer requests."
+                hint={t(
+                  'Retries with the same key are answered from memory instead of charging again. Every request carries a key, the same on each retry. A key whose call succeeded here gets that answer again instead of doing the work twice. One still being worked on is refused, so the caller tries again, and one whose call failed is forgotten, so a retry does the work. Turn this on where the card is charged. On a part in front of it, a call that charged and then failed on the way back is forgotten, and the retry charges again. Keys are forgotten after 65,536 newer requests.',
+                )}
                 checked={node.config.idempotencyKeys === 1}
                 locked={
                   lockedFields?.includes('idempotencyKeys') ? lockNote : undefined
@@ -3617,8 +3673,10 @@ function SingleInspector({
               />
               {node.kind === 'replica' && (
                 <ToggleRow
-                  label="Read from the primary while the copies are behind"
-                  hint="A read of a record the copies have not caught up on goes to the primary, so people always see a change they were told was saved. Each one waits for and takes one of the primary's write slots."
+                  label={t('Read from the primary while the copies are behind')}
+                  hint={t(
+                    "A read of a record the copies have not caught up on goes to the primary, so people always see a change they were told was saved. Each one waits for and takes one of the primary's write slots.",
+                  )}
                   checked={node.config.freshReads === 1}
                   locked={lockedFields?.includes('freshReads') ? lockNote : undefined}
                   onChange={(on) =>
@@ -3652,9 +3710,9 @@ function SingleInspector({
               />
               <p className="ins-expr">
                 {fleet > 1
-                  ? `${formatCount(up)} ${down > 0 ? 'running ' : ''}${up === 1 ? 'instance' : 'instances'} × ${formatCount(cfg.capacity)} slots ÷ ${serviceMsLabel}ms each`
-                  : `${formatCount(cfg.capacity)} at once ÷ ${serviceMsLabel}ms each`}
-                {blocking && ', if everything it calls answered instantly'}
+                  ? `${formatCount(up)} ${down > 0 ? t('running ') : ''}${up === 1 ? t('instance') : t('instances')} × ${formatCount(cfg.capacity)} ${t('slots')} ÷ ${serviceMsLabel}ms${t(' each')}`
+                  : `${t('{n} at once', { n: formatCount(cfg.capacity) })} ÷ ${serviceMsLabel}ms${t(' each')}`}
+                {blocking && t(', if everything it calls answered instantly')}
               </p>
               {blocking && stats && (
                 <StatRow
@@ -3673,8 +3731,13 @@ function SingleInspector({
                   />
                   <p className={headroom < 1 ? 'ins-hint is-danger' : 'ins-hint'}>
                     {headroom < 1
-                      ? `It can finish ${formatPct(headroom)} of what arrives. The rest waits or fails.`
-                      : 'The load arriving now, with room to spare.'}
+                      ? t(
+                          'It can finish {pct} of what arrives. The rest waits or fails.',
+                          {
+                            pct: formatPct(headroom),
+                          },
+                        )
+                      : t('The load arriving now, with room to spare.')}
                   </p>
                 </>
               )}
@@ -3830,8 +3893,9 @@ function SingleInspector({
               </div>
             ) : (
               <p className="ins-blurb">
-                Nothing has reached this component yet. Press Play and it will start
-                reporting.
+                {t(
+                  'Nothing has reached this component yet. Press Play and it will start reporting.',
+                )}
               </p>
             )}
           </Section>
@@ -3857,7 +3921,7 @@ function SingleInspector({
             className="btn btn-danger ins-delete"
             onClick={() => onDelete(node.id)}
           >
-            Delete component
+            {t('Delete component')}
           </button>
         </div>
       </div>
@@ -3955,29 +4019,29 @@ function MultiInspector({
   })).filter((g) => g.fields.length > 0);
 
   return (
-    <aside className="ins" aria-label="Inspector">
+    <aside className="ins" aria-label={t('Inspector')}>
       <div className="ins-scroll scroll">
         <header className="ins-head">
           <p className="ins-multi-title">
             <span className="num num-md">{formatCount(nodes.length)}</span>{' '}
             <span className="ins-multi-word">
-              {nodes.length === 1 ? 'component' : 'components'}
+              {nodes.length === 1 ? t('component') : t('components')}
             </span>
             {edgeCount > 0 ? (
               <>
                 {' + '}
                 <span className="num num-md">{formatCount(edgeCount)}</span>{' '}
                 <span className="ins-multi-word">
-                  {edgeCount === 1 ? 'connection' : 'connections'}
+                  {edgeCount === 1 ? t('connection') : t('connections')}
                 </span>
               </>
             ) : null}
           </p>
           <span className="label ins-kind">
             {sameKind ? (
-              <Term id={KIND_TERM[kind!]}>{KIND_NAME[kind!]}</Term>
+              <Term id={KIND_TERM[kind!]}>{t(KIND_NAME[kind!])}</Term>
             ) : (
-              'Mixed selection'
+              t('Mixed selection')
             )}
           </span>
         </header>
@@ -3987,7 +4051,7 @@ function MultiInspector({
         <ul className="ins-manifest">
           {byKind.map(([k, n]) => (
             <li key={k} className="ins-manifest-row">
-              <span className="row-k">{KIND_NAME[k]}</span>
+              <span className="row-k">{t(KIND_NAME[k])}</span>
               <span className="row-v">{formatCount(n)}</span>
             </li>
           ))}
@@ -3996,9 +4060,11 @@ function MultiInspector({
         {sameKind ? (
           <>
             <p className="ins-blurb">
-              Changing anything below applies it to all {formatCount(nodes.length)} of
-              these. Where they currently disagree the value reads <em>mixed</em>, until
-              you move it.
+              {t('Changing anything below applies it to all ')}
+              {formatCount(nodes.length)}
+              {t(' of these. Where they currently disagree the value reads ')}
+              <em>{t('mixed')}</em>
+              {t(', until you move it.')}
             </p>
 
             {grouped.map((group) => (
@@ -4054,8 +4120,9 @@ function MultiInspector({
           </>
         ) : (
           <p className="ins-blurb">
-            These are different kinds of component, so they have no settings in common.
-            Select one on its own to configure it, or delete the whole selection below.
+            {t(
+              'These are different kinds of component, so they have no settings in common. Select one on its own to configure it, or delete the whole selection below.',
+            )}
           </p>
         )}
 
@@ -4066,7 +4133,7 @@ function MultiInspector({
             className="btn btn-danger ins-delete"
             onClick={deleteAll}
           >
-            Delete {formatCount(nodes.length)} selected
+            {t('Delete {n} selected', { n: formatCount(nodes.length) })}
           </button>
         </div>
       </div>
@@ -4275,7 +4342,10 @@ function LoadMultiple({
         className="btn btn-sm num traffic-multiple"
         aria-expanded={open}
         aria-controls={panelId}
-        aria-label={`Load is ${said}, where 1x is ${formatRate(baselineRps)}`}
+        aria-label={t('Load is {said}, where 1x is {rate}', {
+          said,
+          rate: formatRate(baselineRps),
+        })}
         onClick={() => setOpen((v) => !v)}
       >
         {said}
@@ -4285,11 +4355,12 @@ function LoadMultiple({
           id={panelId}
           className="traffic-multiple-panel"
           role="group"
-          aria-label="Load as a multiple"
+          aria-label={t('Load as a multiple')}
         >
           <p className="traffic-multiple-text">
-            1x is <span className="num">{formatRate(baselineRps)}</span>, the rate these
-            multiples count from.
+            {t('1x is ')}
+            <span className="num">{formatRate(baselineRps)}</span>
+            {t(', the rate these multiples count from.')}
           </p>
           <div className="traffic-multiple-quick">
             {QUICK_MULTIPLES.map((m) => {
@@ -4302,7 +4373,11 @@ function LoadMultiple({
                   className="btn btn-sm num"
                   aria-pressed={Math.abs(rps - target) < 0.5}
                   disabled={over}
-                  title={over ? `Past the ${formatRate(RPS_MAX)} limit` : undefined}
+                  title={
+                    over
+                      ? t('Past the {rate} limit', { rate: formatRate(RPS_MAX) })
+                      : undefined
+                  }
                   onClick={() => onRpsChange(Math.max(RPS_MIN, target))}
                 >
                   {m}x
@@ -4322,7 +4397,9 @@ function LoadMultiple({
               }}
             >
               <span>
-                Make <span className="num">{formatRate(rps)}</span> the new 1x
+                {t('Make ')}
+                <span className="num">{formatRate(rps)}</span>
+                {t(' the new 1x')}
               </span>
             </button>
           ) : null}
@@ -4333,7 +4410,8 @@ function LoadMultiple({
 }
 
 /** "2 times", for a screen reader that would read "×" as a letter. */
-const spokenSpeed = (x: number) => `${formatSpeed(x).replace('×', '')} times`;
+const spokenSpeed = (x: number) =>
+  t('{x} times', { x: formatSpeed(x).replace('×', '') });
 
 /**
  * Play speed, as one button that steps round 0.5x, 1x, 2x and 4x. One button
@@ -4354,17 +4432,22 @@ function SpeedButton({
 }) {
   const next = cycleSpeed(speed);
   const shown = slowAt ?? speed;
-  const keys = coarse ? '' : ' ([ slower, ] faster)';
   return (
     <button
       type="button"
       className={`btn num transport-speed${slowAt === null ? '' : ' is-short'}`}
       onClick={() => onChange(next)}
-      aria-label={`Speed ${spokenSpeed(speed)}. Press for ${spokenSpeed(next)}`}
+      aria-label={t('Speed {speed}. Press for {next}', {
+        speed: spokenSpeed(speed),
+        next: spokenSpeed(next),
+      })}
       title={
         slowAt === null
-          ? `Speed ${formatSpeed(speed)}${keys}`
-          : `Set to ${formatSpeed(speed)}. This design runs at ${formatSpeed(slowAt)} on this machine.`
+          ? `${t('Speed {speed}', { speed: formatSpeed(speed) })}${coarse ? '' : t(' ([ slower, ] faster)')}`
+          : t('Set to {speed}. This design runs at {slow} on this machine.', {
+              speed: formatSpeed(speed),
+              slow: formatSpeed(slowAt),
+            })
       }
     >
       {formatSpeed(shown)}
@@ -4441,7 +4524,7 @@ export function TrafficControl({
             target steal the label's activation.
           */}
           <label className="label" htmlFor={sliderId}>
-            <Term id="offered">Offered load</Term>
+            <Term id="offered">{t('Offered load')}</Term>
           </label>
           <span className="traffic-load-readout">
             {noTrafficSource ? (
@@ -4451,7 +4534,7 @@ export function TrafficControl({
                  drags, nothing happens, and the number tells them the number
                  is the answer. Saying what is missing puts the reason where
                  the eye already is. */
-              <span className="traffic-load-none">No traffic source</span>
+              <span className="traffic-load-none">{t('No traffic source')}</span>
             ) : (
               <>
                 {/* num-lg, not the hero. The slider's own value is feedback
@@ -4463,7 +4546,7 @@ export function TrafficControl({
                   <button
                     type="button"
                     className="btn btn-sm btn-icon traffic-nudge"
-                    aria-label="Less load"
+                    aria-label={t('Less load')}
                     disabled={stepRps(rps, -1) === rps}
                     onClick={() => onRpsChange(stepRps(rps, -1))}
                   >
@@ -4475,7 +4558,7 @@ export function TrafficControl({
                   <button
                     type="button"
                     className="btn btn-sm btn-icon traffic-nudge"
-                    aria-label="More load"
+                    aria-label={t('More load')}
                     disabled={stepRps(rps, 1) === rps}
                     onClick={() => onRpsChange(stepRps(rps, 1))}
                   >
@@ -4487,14 +4570,17 @@ export function TrafficControl({
                      the shape moves the real rate around it. Says both. */
                   <>
                     <span className="label traffic-load-now">
-                      <Term id="traffic-shape">base</Term>, now{' '}
+                      <Term id="traffic-shape">{t('base')}</Term>
+                      {t(', now ')}
                       <span className="num">{formatRate(liveRps)}</span>
                     </span>
                   </>
                 ) : (
                   <span className="label traffic-load-unit">
                     <Term id="rps">
-                      <span className="traffic-unit-long">requests a second</span>
+                      <span className="traffic-unit-long">
+                        {t('requests a second')}
+                      </span>
                       <span className="traffic-unit-short">/s</span>
                     </Term>
                   </span>
@@ -4530,8 +4616,12 @@ export function TrafficControl({
             aria-describedby={locked ? `${sliderId}-locked` : undefined}
             aria-valuetext={
               noTrafficSource
-                ? 'No traffic source on the canvas'
-                : `${Math.round(rps)} request${Math.round(rps) === 1 ? '' : 's'} per second`
+                ? t('No traffic source on the canvas')
+                : tN(
+                    Math.round(rps),
+                    '{n} request per second',
+                    '{n} requests per second',
+                  )
             }
             onChange={(e) => onRpsChange(positionToRps(Number(e.currentTarget.value)))}
             onKeyDown={(e) => {
@@ -4546,10 +4636,10 @@ export function TrafficControl({
             /* The scale describes a range the slider cannot reach, so it is
                replaced by the reason rather than sitting under a dead
                control. Says what to do, not what went wrong. */
-            <p className="traffic-scale-note">Add a client to send traffic.</p>
+            <p className="traffic-scale-note">{t('Add a client to send traffic.')}</p>
           ) : locked ? (
             <p id={`${sliderId}-locked`} className="traffic-scale-note">
-              Set by the challenge you are in.
+              {t('Set by the challenge you are in.')}
             </p>
           ) : (
             <div
@@ -4601,18 +4691,19 @@ export function TrafficControl({
           /* No components: nothing to measure. One quiet sentence, in the
              same slot the numbers occupy, rather than a row of red zeroes. */
           <p className="traffic-empty">
-            Nothing to measure yet. Add a component to get started.
+            {t('Nothing to measure yet. Add a component to get started.')}
           </p>
         ) : (
           <>
             <div className="traffic-metric">
               <span className="label">
-                System <Term id="p99">p99</Term>
+                {t('System ')}
+                <Term id="p99">{t('p99')}</Term>
               </span>
               {p99 === null && system.errorRate > 0 ? (
                 /* Requests are failing and none is coming back: a giant
                    "n/a" read as a glitch in the app, not as an outage. */
-                <span className="traffic-no-replies is-danger">no replies</span>
+                <span className="traffic-no-replies is-danger">{t('no replies')}</span>
               ) : (
                 <span className={p99Tone ? `num num-hero ${p99Tone}` : 'num num-hero'}>
                   {formatMs(p99)}
@@ -4623,7 +4714,7 @@ export function TrafficControl({
             {failingNow ? (
               <div className="traffic-metric traffic-failing">
                 <span className="label">
-                  <Term id="error-rate">Failing</Term>
+                  <Term id="error-rate">{t('Failing')}</Term>
                 </span>
                 <span className="num num-md is-danger">
                   {formatPct(system.errorRate)}
@@ -4634,13 +4725,13 @@ export function TrafficControl({
             <div className="traffic-metric-group">
               <div className="traffic-metric">
                 <span className="label">
-                  <Term id="goodput">Goodput</Term>
+                  <Term id="goodput">{t('Goodput')}</Term>
                 </span>
                 <span className="num num-md">{formatRate(system.goodputRps)}</span>
               </div>
               <div className="traffic-metric">
                 <span className="label">
-                  <Term id="error-rate">Failing</Term>
+                  <Term id="error-rate">{t('Failing')}</Term>
                 </span>
                 <span className={errTone ? `num num-md ${errTone}` : 'num num-md'}>
                   {formatPct(system.errorRate)}
@@ -4648,7 +4739,7 @@ export function TrafficControl({
               </div>
               <div className="traffic-metric">
                 <span className="label">
-                  <Term id="dropped">Lost</Term>
+                  <Term id="dropped">{t('Lost')}</Term>
                 </span>
                 <span className={showDropped ? 'num num-md is-danger' : 'num num-md'}>
                   {formatRate(dropped)}
@@ -4669,13 +4760,17 @@ export function TrafficControl({
         transport" once and then three short labels, instead of three
         orphaned buttons.
       */}
-      <div className="traffic-actions" role="group" aria-label="Simulation transport">
+      <div
+        className="traffic-actions"
+        role="group"
+        aria-label={t('Simulation transport')}
+      >
         <button
           type="button"
           className="btn btn-icon transport-toggle"
           onClick={onToggleRun}
-          aria-label={running ? 'Pause' : 'Play'}
-          title={running ? 'Pause (Space)' : 'Play (Space)'}
+          aria-label={running ? t('Pause') : t('Play')}
+          title={running ? t('Pause (Space)') : t('Play (Space)')}
         >
           {/* No aria-pressed. The label itself flips Pause <-> Play, so the
               button already states its effect; adding a pressed state made a
@@ -4709,8 +4804,8 @@ export function TrafficControl({
           type="button"
           className="btn btn-icon"
           onClick={onStep}
-          aria-label="Step one tick"
-          title="Step one tick (S)"
+          aria-label={t('Step one tick')}
+          title={t('Step one tick (S)')}
         >
           <StepForward size={16} aria-hidden="true" />
         </button>
@@ -4720,8 +4815,8 @@ export function TrafficControl({
           type="button"
           className="btn btn-icon"
           onClick={onReset}
-          aria-label="Reset simulation"
-          title="Reset simulation"
+          aria-label={t('Reset simulation')}
+          title={t('Reset simulation')}
         >
           <RotateCcw size={16} aria-hidden="true" />
         </button>
@@ -4738,7 +4833,7 @@ export function TrafficControl({
           Outside the group, which rounds its last child's corners. */}
       {onSpeedChange ? (
         <span className="sr-only" aria-live="polite">
-          {`Speed ${spokenSpeed(speed)}`}
+          {t('Speed {speed}', { speed: spokenSpeed(speed) })}
         </span>
       ) : null}
     </div>

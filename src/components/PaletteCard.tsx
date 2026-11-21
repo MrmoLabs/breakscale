@@ -16,8 +16,10 @@ import type {
 import { createPortal } from 'react-dom';
 import type { NodeKind } from '../sim/types';
 import { GLOSSARY_BY_ID } from '../content/glossary';
+import { glossaryCopy } from '../i18n/content/glossary';
 import { KIND_NAME, KIND_TERM } from './nodeVisuals';
 import { openGlossaryEntry } from './Tooltip';
+import { t } from '../i18n';
 
 /* ------------------------------------------------------------------ *
  * The palette's "what is this?" card.
@@ -308,7 +310,8 @@ export function usePaletteCard(
 
   const focusCard = useCallback(
     (kind: NodeKind, row: HTMLElement) => {
-      if (!enabled || !GLOSSARY_BY_ID.get(KIND_TERM[kind])?.intro) return false;
+      const entry = GLOSSARY_BY_ID.get(KIND_TERM[kind]);
+      if (!enabled || !entry || !glossaryCopy(entry).intro) return false;
       if (openRef.current?.anchor === row && learnRef.current) {
         learnRef.current.focus();
         return true;
@@ -332,7 +335,10 @@ export function usePaletteCard(
   }, [commit]);
 
   const pos = placed && placed.for === open ? placed : null;
-  const intro = open ? GLOSSARY_BY_ID.get(KIND_TERM[open.kind])?.intro : undefined;
+  // The beginner card follows the locale; the name keeps its raw form here
+  // and is translated at render below.
+  const introEntry = open ? GLOSSARY_BY_ID.get(KIND_TERM[open.kind]) : undefined;
+  const intro = introEntry ? glossaryCopy(introEntry).intro : undefined;
   const name = open ? KIND_NAME[open.kind] : '';
 
   const card =
@@ -384,15 +390,15 @@ export function usePaletteCard(
               commit(null);
             }}
           >
-            <p className="tip-term">{name}</p>
+            <p className="tip-term">{t(name)}</p>
             <div id={descId}>
               <p className="pal-card-what">{intro.what}</p>
               <p className="pal-card-line">
-                <span className="pal-card-k">Example: </span>
+                <span className="pal-card-k">{t('Example: ')}</span>
                 {intro.example}
               </p>
               <p className="pal-card-line">
-                <span className="pal-card-k">When to use it: </span>
+                <span className="pal-card-k">{t('When to use it: ')}</span>
                 {intro.useWhen}
               </p>
             </div>
@@ -401,7 +407,7 @@ export function usePaletteCard(
                 ref={learnRef}
                 type="button"
                 className="tip-see-link"
-                aria-label={`Learn more about ${name}`}
+                aria-label={t('Learn more about {name}', { name: t(name) })}
                 onClick={() => {
                   const id = KIND_TERM[open.kind];
                   // Focus goes back to the row first, so closing the
@@ -410,7 +416,7 @@ export function usePaletteCard(
                   openGlossaryEntry(id);
                 }}
               >
-                Learn more
+                {t('Learn more')}
               </button>
             </p>
           </div>,

@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
+import { t, tN } from '../i18n';
 import { takesCorrectness } from '../sim/behaviour';
 import {
   HARDER_BUDGET,
@@ -15,6 +16,7 @@ import type { SimNode, Topology } from '../sim/types';
 import { followRequest } from '../sim/verify';
 import type { BreakSearch } from '../useBreakSearch';
 import {
+  truncatedLine,
   baselineSentence,
   checkedLine,
   clock,
@@ -29,7 +31,6 @@ import {
   scheduleSentence,
   singlePointLines,
   timelineWords,
-  TRUNCATED_LINE,
   triedLine,
 } from './breakCopy';
 import type { Names, TimelineTag } from './breakCopy';
@@ -94,64 +95,88 @@ function templateLabel(goal: Goal, names: Names): string {
   const who = goal.route === undefined ? null : names.node(goal.route);
   switch (goal.metric) {
     case 'errorRate':
-      return who ? `Keep ${who} up` : 'Keep everyone up';
+      return who ? t('Keep {who} up', { who }) : t('Keep everyone up');
     case 'p99':
     case 'p95':
-      return who ? `Keep ${who} fast` : 'Stay fast';
+      return who ? t('Keep {who} fast', { who }) : t('Stay fast');
     case 'lostWrites':
-      return 'No lost writes';
+      return t('No lost writes');
     case 'lostJobs':
-      return 'No lost jobs';
+      return t('No lost jobs');
     case 'doubleCharges':
-      return 'Every payment charged at most once';
+      return t('Every payment charged at most once');
     case 'lostAckedWrites':
-      return 'No saved write is lost';
+      return t('No saved write is lost');
     case 'staleReads':
-      return 'Read your own writes';
+      return t('Read your own writes');
     case 'queueDepth':
       return '';
   }
 }
 
 /** The sentence around a template's number, and the number's unit. */
-function templateSentence(goal: Goal): { before: string; after: string; unit: string } {
-  const their = goal.route === undefined ? '' : 'of their ';
+function templateSentence(goal: Goal): {
+  before: string;
+  after: string;
+  unit: string;
+  aria: string;
+} {
+  const onRoute = goal.route !== undefined;
   switch (goal.metric) {
     case 'errorRate':
       return {
-        before: 'Fewer than',
-        after: `% of ${their}requests fail.`,
-        unit: 'percent',
+        before: t('Fewer than'),
+        after: onRoute ? t('% of their requests fail.') : t('% of requests fail.'),
+        unit: t('percent'),
+        aria: t('Fewer than how many percent'),
       };
     case 'p99':
     case 'p95':
       return {
-        before: `99 in 100 ${their}requests finish within`,
-        after: 'ms.',
-        unit: 'milliseconds',
+        before: onRoute
+          ? t('99 in 100 of their requests finish within')
+          : t('99 in 100 requests finish within'),
+        after: t('ms.'),
+        unit: t('milliseconds'),
+        aria: onRoute
+          ? t('99 in 100 of their requests finish within how many milliseconds')
+          : t('99 in 100 requests finish within how many milliseconds'),
       };
     case 'lostWrites':
-      return { before: 'At most', after: 'saved writes are lost.', unit: 'writes' };
+      return {
+        before: t('At most'),
+        after: t('saved writes are lost.'),
+        unit: t('writes'),
+        aria: t('At most how many writes'),
+      };
     case 'doubleCharges':
       return {
-        before: 'At most',
-        after: 'payments are charged more than once.',
-        unit: 'payments',
+        before: t('At most'),
+        after: t('payments are charged more than once.'),
+        unit: t('payments'),
+        aria: t('At most how many payments'),
       };
     case 'lostAckedWrites':
       return {
-        before: 'At most',
-        after: 'writes the client was told were saved are lost.',
-        unit: 'writes',
+        before: t('At most'),
+        after: t('writes the client was told were saved are lost.'),
+        unit: t('writes'),
+        aria: t('At most how many writes'),
       };
     case 'staleReads':
       return {
-        before: 'At most',
-        after: 'reads miss a write the same client was told was saved.',
-        unit: 'reads',
+        before: t('At most'),
+        after: t('reads miss a write the same client was told was saved.'),
+        unit: t('reads'),
+        aria: t('At most how many reads'),
       };
     default:
-      return { before: 'At most', after: 'accepted jobs fail.', unit: 'jobs' };
+      return {
+        before: t('At most'),
+        after: t('accepted jobs fail.'),
+        unit: t('jobs'),
+        aria: t('At most how many jobs'),
+      };
   }
 }
 
@@ -217,14 +242,14 @@ function Chevron({ open }: { open: boolean }) {
 /** The heading for the state the panel is in. */
 function headingOf(search: BreakSearch): string {
   const v = search.view;
-  if (v.status !== 'done') return 'Can you break it?';
+  if (v.status !== 'done') return t('Can you break it?');
   switch (v.result.status) {
     case 'broke':
-      return v.result.fromRemembered ? 'Still breaks.' : 'Broke it.';
+      return v.result.fromRemembered ? t('Still breaks.') : t('Broke it.');
     case 'held':
-      return 'Held.';
+      return t('Held.');
     case 'alreadyBroken':
-      return 'Already broken.';
+      return t('Already broken.');
   }
 }
 
@@ -232,17 +257,26 @@ function headingOf(search: BreakSearch): string {
 function announcement(search: BreakSearch, names: Names): string {
   const v = search.view;
   if (v.status === 'searching') return v.progress ? phaseLine(v.progress.phase) : '';
-  if (v.status === 'stopped') return 'Stopped.';
+  if (v.status === 'stopped') return t('Stopped.');
   if (v.status !== 'done') return '';
   const r = v.result;
   switch (r.status) {
     case 'broke':
       return `${headingOf(search)} ${scheduleSentence(r.attacks, names)} ${effectSentence(r.run, v.goal, names)}`;
     case 'held':
-      return `Held across ${r.tried} fault ${r.tried === 1 ? 'schedule' : 'schedules'}.`;
+      return heldLine(r.tried);
     case 'alreadyBroken':
-      return `Already broken with no faults. ${effectSentence(r.baseline.worst, v.goal, names)}`;
+      return `${t('Already broken with no faults.')} ${effectSentence(r.baseline.worst, v.goal, names)}`;
   }
+}
+
+/** "Held across N fault schedule(s)." */
+function heldLine(tried: number): string {
+  return tN(
+    tried,
+    'Held across {n} fault schedule.',
+    'Held across {n} fault schedules.',
+  );
 }
 
 export function BreakPanel({
@@ -340,7 +374,7 @@ export function BreakPanel({
       <header className="chal-head">
         <div className="chal-head-text">
           {view.status === 'done' ? (
-            <p className="label chal-kicker">Can you break it?</p>
+            <p className="label chal-kicker">{t('Can you break it?')}</p>
           ) : null}
           <h2 id={headingId} ref={headingRef} className="chal-name" tabIndex={-1}>
             {heading}
@@ -351,8 +385,8 @@ export function BreakPanel({
           className="btn btn-ghost btn-sm btn-icon chal-collapse"
           aria-expanded={!shut}
           aria-controls={bodyId}
-          aria-label={shut ? 'Show the panel' : 'Fold the panel'}
-          title={shut ? 'Show the panel' : 'Fold the panel'}
+          aria-label={shut ? t('Show the panel') : t('Fold the panel')}
+          title={shut ? t('Show the panel') : t('Fold the panel')}
           onClick={() => setCollapsed((c) => !c)}
         >
           <Chevron open={!shut} />
@@ -383,7 +417,7 @@ export function BreakPanel({
         {search.stale && view.status === 'done' ? (
           <div className="brk-stale">
             <p className="chal-note">
-              You changed the design after this ran. A replay plays it as it was.
+              {t('You changed the design after this ran. A replay plays it as it was.')}
             </p>
             {/* The fixing view below has its own. */}
             {fixing && result?.status === 'broke' ? null : <RunAgain search={search} />}
@@ -408,8 +442,12 @@ export function BreakPanel({
         ) : fixing && result?.status === 'broke' ? (
           <div className="brk-fixing">
             <p className="chal-note">
-              Broke at: {scheduleSentence(result.attacks, names)} Change the design,
-              then run it again. Those faults are tried first.
+              {t(
+                'Broke at: {schedule} Change the design, then run it again. Those faults are tried first.',
+                {
+                  schedule: scheduleSentence(result.attacks, names),
+                },
+              )}
             </p>
             <div className="chal-actions">
               <RunAgain search={search} primary />
@@ -418,7 +456,7 @@ export function BreakPanel({
                 className="btn btn-sm btn-ghost"
                 onClick={() => setFixing(false)}
               >
-                Show the verdict
+                {t('Show the verdict')}
               </button>
             </div>
           </div>
@@ -460,21 +498,23 @@ function ReplayStrip({
   const at = Math.min(Math.floor(atMs / 1000) * 1000, watch.endMs);
   const done = atMs >= watch.endMs;
   const until = Math.ceil((watch.firstMs - atMs) / 1000);
-  const clock = done ? 'Replay done' : `Replay ${secs(at)} of ${secs(watch.endMs)}`;
+  const clock = done
+    ? t('Replay done')
+    : t('Replay {a} of {b}', { a: secs(at), b: secs(watch.endMs) });
   return (
     <div className="brk-watch">
       <div className="brk-watch-head">
         <p className="brk-watch-clock">{clock}</p>
         {onStop ? (
           <button type="button" className="btn btn-sm" onClick={onStop}>
-            Stop replay
+            {t('Stop replay')}
           </button>
         ) : null}
       </div>
       <div
         className="brk-watch-bar"
         role="progressbar"
-        aria-label="Replay"
+        aria-label={t('Replay')}
         aria-valuemin={0}
         aria-valuemax={watch.endMs / 1000}
         aria-valuenow={at / 1000}
@@ -485,7 +525,10 @@ function ReplayStrip({
       <p className="brk-pill" aria-live="off">
         {watch.line}
         {until > 0
-          ? ` The first fault lands at ${secs(watch.firstMs)}, in ${until}s.`
+          ? ` ${t('The first fault lands at {at}, in {n}s.', {
+              at: secs(watch.firstMs),
+              n: until,
+            })}`
           : ''}
       </p>
     </div>
@@ -529,44 +572,47 @@ function Picking({
   return (
     <>
       <p className="chal-brief">
-        Pick what has to hold. Breakscale throws faults at your design until it fails,
-        or until it runs out of tries.
+        {t(
+          'Pick what has to hold. Breakscale throws faults at your design until it fails, or until it runs out of tries.',
+        )}
       </p>
       {search.goneId !== null ? (
-        <p className="chal-note">{goneLine(search.goneId)} Pick another goal.</p>
+        <p className="chal-note">
+          {goneLine(search.goneId)} {t('Pick another goal.')}
+        </p>
       ) : null}
       <fieldset className="brk-goals">
-        <legend className="label chal-block-title">What has to hold</legend>
-        {templates.map((t) => {
-          const on = t.id === search.goalId;
-          const s = templateSentence(t.goal);
-          const inputId = `brk-max-${t.id}`;
+        <legend className="label chal-block-title">{t('What has to hold')}</legend>
+        {templates.map((tpl) => {
+          const on = tpl.id === search.goalId;
+          const s = templateSentence(tpl.goal);
+          const inputId = `brk-max-${tpl.id}`;
           return (
-            <div key={t.id} className={`brk-goal${on ? ' is-on' : ''}`}>
+            <div key={tpl.id} className={`brk-goal${on ? ' is-on' : ''}`}>
               <label className="brk-goal-head">
                 <input
                   type="radio"
                   name="brk-goal"
                   checked={on}
-                  onChange={() => search.setGoalId(t.id)}
+                  onChange={() => search.setGoalId(tpl.id)}
                 />
-                <span className="brk-goal-name">{templateLabel(t.goal, names)}</span>
+                <span className="brk-goal-name">{templateLabel(tpl.goal, names)}</span>
               </label>
               {on ? (
                 <p className="brk-goal-sentence">
                   <label htmlFor={inputId}>{s.before}</label>{' '}
                   <GoalNumber
                     id={inputId}
-                    value={search.maxOf(t.id)}
+                    value={search.maxOf(tpl.id)}
                     describedBy={baselineId}
-                    label={`${s.before} how many ${s.unit}`}
-                    onCommit={(v) => search.setMax(t.id, v)}
+                    label={s.aria}
+                    onCommit={(v) => search.setMax(tpl.id, v)}
                   />{' '}
                   {s.after}
                 </p>
               ) : null}
-              {on ? <GoalTerms metric={t.goal.metric} /> : null}
-              {on && t.goal.metric === 'doubleCharges' ? (
+              {on ? <GoalTerms metric={tpl.goal.metric} /> : null}
+              {on && tpl.goal.metric === 'doubleCharges' ? (
                 <ChargeablePicker
                   nodes={nodes}
                   charged={charged}
@@ -580,15 +626,15 @@ function Picking({
       </fieldset>
       <p id={baselineId} className="chal-note">
         {unmarked
-          ? 'Pick the part that charges the card to measure it.'
+          ? t('Pick the part that charges the card to measure it.')
           : base
-            ? `${baselineSentence(base.worst, search.goal, names)} That is the worst of three runs of traffic.`
-            : 'Measuring it with no faults…'}
+            ? `${baselineSentence(base.worst, search.goal, names)} ${t('That is the worst of three runs of traffic.')}`
+            : t('Measuring it with no faults…')}
       </p>
 
       {search.singlePoints.length > 0 ? (
         <div className="chal-block brk-spof">
-          <p className="label chal-block-title">Single points of failure</p>
+          <p className="label chal-block-title">{t('Single points of failure')}</p>
           <ul className="brk-list">
             {singlePointLines(search.singlePoints, names).map((line) => (
               <li key={line}>{line}</li>
@@ -598,16 +644,16 @@ function Picking({
             // An outage cannot break a goal about the data, and a crash of the
             // one store is how its writes get lost, so nothing is spared.
             <p className="chal-note">
-              Each of these is a single point of failure. This goal is about the data,
-              not about staying up, so the search crashes and cuts them like any other
-              part.
+              {t(
+                'Each of these is a single point of failure. This goal is about the data, not about staying up, so the search crashes and cuts them like any other part.',
+              )}
             </p>
           ) : (
             <>
               <p className="chal-note">
-                Each of these is a single point of failure: lose one and that traffic
-                has nowhere to go, which breaks any goal. So the search only slows them
-                and takes down single machines.
+                {t(
+                  'Each of these is a single point of failure: lose one and that traffic has nowhere to go, which breaks any goal. So the search only slows them and takes down single machines.',
+                )}
               </p>
               <label className="brk-check">
                 <input
@@ -617,7 +663,7 @@ function Picking({
                     set({ includeSinglePoints: e.currentTarget.checked })
                   }
                 />
-                Crash and cut them too
+                {t('Crash and cut them too')}
               </label>
             </>
           )}
@@ -625,9 +671,9 @@ function Picking({
       ) : null}
 
       <details className="brk-more">
-        <summary>What can go wrong</summary>
+        <summary>{t('What can go wrong')}</summary>
         <fieldset className="brk-kinds">
-          <legend className="sr-only">Kinds of fault</legend>
+          <legend className="sr-only">{t('Kinds of fault')}</legend>
           {(Object.keys(KIND_LABEL) as AttackKind[])
             .filter((k) => kindFits(k, search.goal))
             .map((k) => (
@@ -637,12 +683,12 @@ function Picking({
                   checked={opts.kinds.includes(k)}
                   onChange={() => toggleKind(k)}
                 />
-                {KIND_LABEL[k]}
+                {t(KIND_LABEL[k])}
               </label>
             ))}
         </fieldset>
         <label className="brk-check">
-          Up to{' '}
+          {t('Up to')}{' '}
           <select
             value={opts.maxFaults}
             onChange={(e) =>
@@ -653,11 +699,11 @@ function Picking({
             <option value={2}>2</option>
             <option value={3}>3</option>
           </select>{' '}
-          faults at once
+          {t('faults at once')}
         </label>
         {targets.length > 0 ? (
           <fieldset className="brk-kinds">
-            <legend className="chal-note">Leave these alone:</legend>
+            <legend className="chal-note">{t('Leave these alone:')}</legend>
             {targets.map((n) => (
               <label key={n.id} className="brk-check">
                 <input
@@ -679,7 +725,7 @@ function Picking({
           disabled={!opts.kinds.some((k) => kindFits(k, search.goal)) || unmarked}
           onClick={() => search.start()}
         >
-          Try to break it
+          {t('Try to break it')}
         </button>
       </div>
     </>
@@ -705,10 +751,15 @@ function Searching({
     <>
       {stopped ? (
         <p className="chal-note">
-          Stopped after {tried} of {budget}. Nothing broke it yet.
+          {t('Stopped after {tried} of {budget}. Nothing broke it yet.', {
+            tried,
+            budget,
+          })}
         </p>
       ) : (
-        <p className="chal-note">{progress ? phaseLine(progress.phase) : 'Starting'}</p>
+        <p className="chal-note">
+          {progress ? phaseLine(progress.phase) : t('Starting')}
+        </p>
       )}
       <div
         className="chal-progress"
@@ -716,7 +767,7 @@ function Searching({
         aria-valuemin={0}
         aria-valuemax={budget}
         aria-valuenow={tried}
-        aria-valuetext={`${tried} of ${budget} tried`}
+        aria-valuetext={t('{tried} of {budget} tried', { tried, budget })}
       >
         <span
           className="chal-progress-fill"
@@ -726,25 +777,32 @@ function Searching({
         />
       </div>
       <p className="brk-count">
-        <span className="num">{tried}</span> of <span className="num">{budget}</span>{' '}
-        tried
+        <span className="num">{tried}</span>
+        {t(' of ')}
+        <span className="num">{budget}</span>
+        {t(' tried')}
         {shrinking ? (
           <>
-            , then <span className="num">{progress?.shrinkTried ?? 0}</span> smaller
-            versions
+            {t(', then ')}
+            <span className="num">{progress?.shrinkTried ?? 0}</span>
+            {t(' smaller versions')}
           </>
         ) : null}
       </p>
       {progress && progress.current.length > 0 && !stopped ? (
         <p className="chal-note brk-now" aria-hidden="true">
-          Now: {progress.current.map((a) => faultPhrase(a, names)).join(' and ')}
+          {t('Now: {list}', {
+            list: progress.current.map((a) => faultPhrase(a, names)).join(t(' and ')),
+          })}
         </p>
       ) : null}
       {holds > 0 ? (
         <p className="chal-note">
           {holds === 1
-            ? 'The break from last time holds now. Looking for another way in.'
-            : `${holds} breaks from before hold now. Looking for another way in.`}
+            ? t('The break from last time holds now. Looking for another way in.')
+            : t('{n} breaks from before hold now. Looking for another way in.', {
+                n: holds,
+              })}
         </p>
       ) : null}
       {progress?.notes
@@ -752,7 +810,9 @@ function Searching({
         .map((n, i) => (
           <p key={i} className="chal-note">
             {n.kind === 'gone'
-              ? `${names.node(n.target)} is gone, so that one no longer applies.`
+              ? t('{name} is gone, so that one no longer applies.', {
+                  name: names.node(n.target),
+                })
               : null}
           </p>
         ))}
@@ -772,15 +832,15 @@ function Searching({
               className="btn btn-sm btn-primary"
               onClick={search.keepGoing}
             >
-              Keep going
+              {t('Keep going')}
             </button>
             <button type="button" className="btn btn-sm" onClick={search.backToGoals}>
-              Change the goal
+              {t('Change the goal')}
             </button>
           </>
         ) : (
           <button type="button" className="btn btn-sm" onClick={search.stop}>
-            Stop
+            {t('Stop')}
           </button>
         )}
       </div>
@@ -808,12 +868,12 @@ function Verdict({
     return (
       <>
         <p className="brk-verdict">
-          It is already broken with no faults.{' '}
+          {t('It is already broken with no faults.')}{' '}
           {effectSentence(r.baseline.worst, view.goal, names)}{' '}
           {goalLine(view.goal, r.baseline.worst)}
         </p>
         {r.baseline.worst.truncated === true ? (
-          <p className="chal-note">{TRUNCATED_LINE}</p>
+          <p className="chal-note">{truncatedLine()}</p>
         ) : null}
         {r.baseline.worst.violations?.[0] ? (
           <FollowRequest
@@ -830,7 +890,7 @@ function Verdict({
             className="btn btn-sm btn-primary"
             onClick={search.backToGoals}
           >
-            Change the goal
+            {t('Change the goal')}
           </button>
         </div>
       </>
@@ -841,12 +901,12 @@ function Verdict({
   if (r.status === 'held') {
     return (
       <>
-        <p className="brk-verdict">
-          Held across {r.tried} fault {r.tried === 1 ? 'schedule' : 'schedules'}.
-        </p>
+        <p className="brk-verdict">{heldLine(r.tried)}</p>
         <p className="chal-note">
-          {triedLine(r.bySize)} Each landed between 10s and 15s, and the goal was
-          measured from 5s to 35s on three runs of traffic.
+          {triedLine(r.bySize)}{' '}
+          {t(
+            'Each landed between 10s and 15s, and the goal was measured from 5s to 35s on three runs of traffic.',
+          )}
         </p>
         {view.goal.metric === 'doubleCharges' &&
         !r.triedDuplicates &&
@@ -866,19 +926,24 @@ function Verdict({
           </p>
         ) : null}
         {r.baseline.worst.truncated === true ? (
-          <p className="chal-note">{TRUNCATED_LINE}</p>
+          <p className="chal-note">{truncatedLine()}</p>
         ) : null}
         <p className="chal-note">{closestLine(r.closest, view.goal, names)}</p>
         {fixed > 0 ? (
           <p className="chal-note">
-            You fixed{' '}
-            {fixed === 1 ? 'the way it broke last time' : `${fixed} ways it broke`}.
+            {tN(
+              fixed,
+              'You fixed the way it broke last time.',
+              'You fixed {n} ways it broke.',
+            )}
           </p>
         ) : null}
         {gone.map((n, i) => (
           <p key={i} className="chal-note">
             {n.kind === 'gone'
-              ? `${names.node(n.target)} is gone, so that break no longer applies.`
+              ? t('{name} is gone, so that break no longer applies.', {
+                  name: names.node(n.target),
+                })
               : null}
           </p>
         ))}
@@ -891,11 +956,11 @@ function Verdict({
               className="btn btn-sm btn-primary"
               onClick={() => search.start(true)}
             >
-              Try harder
+              {t('Try harder')}
             </button>
           ) : null}
           <button type="button" className="btn btn-sm" onClick={search.backToGoals}>
-            Change the goal
+            {t('Change the goal')}
           </button>
         </div>
       </>
@@ -909,13 +974,16 @@ function Verdict({
       </p>
       <p className="chal-note brk-small">
         {r.fromRemembered
-          ? 'The same faults as last time.'
+          ? t('The same faults as last time.')
           : r.shrinkTried > 0
-            ? `Found on try ${r.foundAt}, then made smaller in ${r.shrinkTried} more.`
-            : `Found on try ${r.foundAt}.`}{' '}
-        It broke on this run of traffic and on another one too.
+            ? t('Found on try {n}, then made smaller in {m} more.', {
+                n: r.foundAt,
+                m: r.shrinkTried,
+              })
+            : t('Found on try {n}.', { n: r.foundAt })}{' '}
+        {t('It broke on this run of traffic and on another one too.')}
       </p>
-      {r.run.truncated === true ? <p className="chal-note">{TRUNCATED_LINE}</p> : null}
+      {r.run.truncated === true ? <p className="chal-note">{truncatedLine()}</p> : null}
       {r.run.violations?.[0] ? (
         <FollowRequest
           design={view.design}
@@ -927,20 +995,20 @@ function Verdict({
       ) : null}
       <div className="chal-actions brk-actions">
         <button type="button" className="btn btn-sm btn-primary" onClick={onWatch}>
-          Watch the replay
+          {t('Watch the replay')}
         </button>
         <button type="button" className="btn btn-sm" onClick={onReplayLink}>
-          Replay link
+          {t('Replay link')}
         </button>
         <button type="button" className="btn btn-sm" onClick={onFix}>
-          Try to fix it
+          {t('Try to fix it')}
         </button>
         <button
           type="button"
           className="btn btn-sm btn-ghost"
           onClick={search.backToGoals}
         >
-          Change the goal
+          {t('Change the goal')}
         </button>
       </div>
     </>
@@ -972,14 +1040,14 @@ function RunAgain({
       <>
         <p className="chal-note">{goneLine(search.goneId)}</p>
         <button type="button" className={cls} onClick={search.backToGoals}>
-          Pick another goal
+          {t('Pick another goal')}
         </button>
       </>
     );
   }
   return (
     <button type="button" className={cls} onClick={() => search.start()}>
-      Run again
+      {t('Run again')}
     </button>
   );
 }
@@ -989,31 +1057,43 @@ function GoalTerms({ metric }: { metric: Goal['metric'] }) {
   if (metric === 'doubleCharges') {
     return (
       <p className="chal-note brk-small">
-        A payment charged twice breaks the <Term id="at-most-once">at most once</Term>{' '}
-        rule. It happens when a call that already charged looks failed to its caller,
-        after a <Term id="timeout">timeout</Term> or an error further on, and the{' '}
-        <Term id="retry">retry</Term> charges again, or when the network delivers the
-        same call twice. An <Term id="idempotency-key">idempotency key</Term> on the
-        part that charges is the usual fix.
+        {t('A payment charged twice breaks the ')}
+        <Term id="at-most-once">{t('at most once')}</Term>
+        {t(
+          ' rule. It happens when a call that already charged looks failed to its caller, after a ',
+        )}
+        <Term id="timeout">{t('timeout')}</Term>
+        {t(' or an error further on, and the ')}
+        <Term id="retry">{t('retry')}</Term>
+        {t(' charges again, or when the network delivers the same call twice. An ')}
+        <Term id="idempotency-key">{t('idempotency key')}</Term>
+        {t(' on the part that charges is the usual fix.')}
       </p>
     );
   }
   if (metric === 'lostAckedWrites') {
     return (
       <p className="chal-note brk-small">
-        Counts every <Term id="acknowledged-write">acknowledged write</Term> that never
-        reaches storage, a <Term id="lost-write">lost write</Term>. A write still on its
-        way when the run ends is not counted.
+        {t('Counts every ')}
+        <Term id="acknowledged-write">{t('acknowledged write')}</Term>
+        {t(' that never reaches storage, a ')}
+        <Term id="lost-write">{t('lost write')}</Term>
+        {t('. A write still on its way when the run ends is not counted.')}
       </p>
     );
   }
   if (metric === 'staleReads') {
     return (
       <p className="chal-note brk-small">
-        Checks <Term id="read-your-writes">read your writes</Term>: once a client is
-        told a write was saved, its next read of that record should show it. A{' '}
-        <Term id="replication-lag">replica that is behind</Term> serves a{' '}
-        <Term id="stale-read">stale read</Term> instead.
+        {t('Checks ')}
+        <Term id="read-your-writes">{t('read your writes')}</Term>
+        {t(
+          ': once a client is told a write was saved, its next read of that record should show it. A ',
+        )}
+        <Term id="replication-lag">{t('replica that is behind')}</Term>
+        {t(' serves a ')}
+        <Term id="stale-read">{t('stale read')}</Term>
+        {t(' instead.')}
       </p>
     );
   }
@@ -1039,15 +1119,19 @@ function ChargeablePicker({
   if (charged.length > 0) {
     return (
       <p className="chal-note brk-small">
-        Counted at {charged.map((n) => names.node(n.id)).join(', ')}, where each
-        finished call charges money. Change it in the part's settings.
+        {t(
+          "Counted at {list}, where each finished call charges money. Change it in the part's settings.",
+          {
+            list: charged.map((n) => names.node(n.id)).join(t(', ')),
+          },
+        )}
       </p>
     );
   }
   const candidates = nodes.filter((n) => takesCorrectness(n.kind));
   return (
     <p className="brk-goal-sentence">
-      <label htmlFor={id}>Which part charges the card?</label>{' '}
+      <label htmlFor={id}>{t('Which part charges the card?')}</label>{' '}
       <select
         id={id}
         value=""
@@ -1055,7 +1139,7 @@ function ChargeablePicker({
           if (e.currentTarget.value !== '') onMark(e.currentTarget.value);
         }}
       >
-        <option value="">Pick one</option>
+        <option value="">{t('Pick one')}</option>
         {candidates.map((n) => (
           <option key={n.id} value={n.id}>
             {names.node(n.id)}
@@ -1103,7 +1187,8 @@ function FollowRequest({
           aria-controls={listId}
           onClick={() => setOpen((o) => !o)}
         >
-          {open ? 'Hide' : 'Follow'} request{' '}
+          {open ? t('Hide') : t('Follow')}
+          {t(' request ')}
           <span className="num">{violation.rid}</span>
         </button>
       </div>
@@ -1117,7 +1202,7 @@ function FollowRequest({
             <span>
               {l.text}
               {l.tag !== null ? (
-                <span className="brk-story-tag">{TAG_WORDS[l.tag]}</span>
+                <span className="brk-story-tag">{t(TAG_WORDS[l.tag])}</span>
               ) : null}
             </span>
           </li>

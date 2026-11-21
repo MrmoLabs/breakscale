@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import './PassStrip.css';
 
 /* ==========================================================================
@@ -24,9 +25,9 @@ export function PassStrip({ name, onShow }: PassStripProps) {
   return (
     <div className="task" data-chrome="pass">
       <div className="card-float pass-strip">
-        <p className="pass-strip-text">You passed {name}.</p>
+        <p className="pass-strip-text">{t('You passed {name}.', { name })}</p>
         <button type="button" className="btn btn-sm btn-primary" onClick={onShow}>
-          See what you learned
+          {t('See what you learned')}
         </button>
       </div>
     </div>

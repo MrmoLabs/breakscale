@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { Check } from 'lucide-react';
 import type { SimSnapshot, Topology } from '../sim/types';
+import { t } from '../i18n';
+import { displayLabel } from '../i18n/display';
+import { taskCopy } from '../i18n/content/tasks';
 import { toneClass } from '../components/format';
 import { figViews, probeValue, type TaskAction, type TaskStep } from './exampleTask';
 import type { TaskView } from './useExampleTask';
@@ -57,17 +60,25 @@ function actionOf(
     const now = snapshot ? probeValue({ of: 'load' }, topology, snapshot) : null;
     return now === a.rps
       ? null
-      : { ...a, label: `Set it to ${a.rps.toLocaleString('en-US')}` };
+      : { ...a, label: t('Set it to {n}', { n: a.rps.toLocaleString('en-US') }) };
   }
   if (selectedId === a.node) return null;
   const label = topology.nodes.find((n) => n.id === a.node)?.label;
-  return label ? { ...a, label: `Select ${label}` } : null;
+  return label
+    ? { ...a, label: t('Select {name}', { name: displayLabel(label) }) }
+    : null;
 }
 
-/** The inspector row whose label reads `label`, or null while it is not shown. */
+/**
+ * The inspector row whose label reads `label`, or null while it is not shown.
+ * Both sides go through t(): the step's field name is English source text,
+ * while the rendered label follows the locale (the inspector translates its
+ * spec labels), so the comparison has to translate the step's side too.
+ */
 function fieldRow(label: string): Element | null {
   for (const l of document.querySelectorAll('.ins label.row-k')) {
-    if (l.textContent?.trim() === label) return l.closest('.ins-field-row, .ins-field');
+    if (l.textContent?.trim() === t(label))
+      return l.closest('.ins-field-row, .ins-field');
   }
   return null;
 }
@@ -88,7 +99,12 @@ export function TaskCard({
   takeFocus,
   onFocusTaken,
 }: TaskCardProps) {
-  const { task } = view;
+  /* What renders: the translated copy when the locale is Chinese, the task
+     itself otherwise. The engine keeps working on the raw task in
+     useExampleTask; every field the card itself acts on (`action`, `field`,
+     `holdMs`) passes through taskCopy untouched, and the field-row match
+     still goes through t() below. */
+  const task = taskCopy(view.task);
   const ringRef = useRef<Element | null>(null);
   const cardRef = useRef<HTMLElement | null>(null);
   const chipRef = useRef<HTMLButtonElement | null>(null);
@@ -101,10 +117,10 @@ export function TaskCard({
   const at = live ? Math.min(live.progress.step, total) : 0;
   const done = live?.done ?? false;
   const countText = done
-    ? 'done'
+    ? t('done')
     : view.kind === 'stale'
-      ? 'not checking'
-      : `${at + 1} of ${total}`;
+      ? t('not checking')
+      : t('{at} of {total}', { at: at + 1, total });
 
   /* The field the step asks to change, ringed once its part is selected,
      as the tour rings its own. Rerun on every render, since the inspector
@@ -166,14 +182,14 @@ export function TaskCard({
           ref={chipRef}
           type="button"
           className="btn btn-sm task-chip"
-          aria-label={`Show your task, ${countText}`}
+          aria-label={t('Show your task, {state}', { state: countText })}
           onClick={(e) => {
             refocusRef.current = e.detail === 0;
             onHide(false);
           }}
         >
           <span>
-            Your task, <span className="task-chip-count">{countText}</span>
+            {t('Your task,')} <span className="task-chip-count">{countText}</span>
           </span>
         </button>
       </div>
@@ -198,7 +214,7 @@ export function TaskCard({
       >
         <header className="card-float-head">
           <p className="task-count" aria-live="polite">
-            Your task, <span className="task-count-n">{countText}</span>
+            {t('Your task,')} <span className="task-count-n">{countText}</span>
           </p>
           <button
             type="button"
@@ -209,14 +225,14 @@ export function TaskCard({
               onHide(true);
             }}
           >
-            Hide
+            {t('Hide')}
           </button>
         </header>
 
         {done ? (
           <>
             <h2 id="task-title" className="card-float-title">
-              What you learned
+              {t('What you learned')}
             </h2>
             <p className="task-learned">{task.learned}</p>
             <div className="card-float-actions">
@@ -226,7 +242,7 @@ export function TaskCard({
                   className="btn btn-sm btn-primary"
                   onClick={next.open}
                 >
-                  Next: {next.name}
+                  {t('Next: {name}', { name: next.name })}
                 </button>
               ) : (
                 <button
@@ -234,7 +250,7 @@ export function TaskCard({
                   className="btn btn-sm btn-primary"
                   onClick={onOpenPath}
                 >
-                  Open the learning path
+                  {t('Open the learning path')}
                 </button>
               )}
             </div>
@@ -247,8 +263,9 @@ export function TaskCard({
             {view.kind === 'stale' ? (
               <>
                 <p className="task-note">
-                  You changed the diagram, so this task has stopped checking. Load the
-                  example again to start it over.
+                  {t(
+                    'You changed the diagram, so this task has stopped checking. Load the example again to start it over.',
+                  )}
                 </p>
                 <div className="card-float-actions">
                   <button
@@ -256,7 +273,7 @@ export function TaskCard({
                     className="btn btn-sm btn-primary"
                     onClick={onReload}
                   >
-                    Reload {exampleName}
+                    {t('Reload {name}', { name: exampleName })}
                   </button>
                 </div>
               </>
@@ -285,14 +302,14 @@ export function TaskCard({
                         <span className="task-step-text">
                           {step.text}
                           {state === 'done' ? (
-                            <span className="sr-only"> Done.</span>
+                            <span className="sr-only"> {t('Done.')}</span>
                           ) : null}
                           {state === 'skipped' ? (
-                            <span className="task-skipped"> Skipped</span>
+                            <span className="task-skipped"> {t('Skipped')}</span>
                           ) : null}
                         </span>
                         {state === 'now' && figs.length > 0 ? (
-                          <ul className="task-figs" aria-label="Right now">
+                          <ul className="task-figs" aria-label={t('Right now')}>
                             {figs.map((f) => (
                               <li
                                 key={f.label}
@@ -314,9 +331,11 @@ export function TaskCard({
                         ) : null}
                         {state === 'now' && held > 0 ? (
                           <span className="task-hold">
-                            Holding:{' '}
-                            <span className="num">{Math.floor(held / 1000)}</span> of{' '}
-                            <span className="num">{holdMs / 1000}</span> seconds
+                            {t('Holding: ')}
+                            <span className="num">{Math.floor(held / 1000)}</span>
+                            {t(' of ')}
+                            <span className="num">{holdMs / 1000}</span>
+                            {t(' seconds')}
                           </span>
                         ) : null}
                         {state === 'now' && action ? (

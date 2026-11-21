@@ -1,4 +1,5 @@
 import { Pin, X } from 'lucide-react';
+import { t } from '../i18n';
 import type { SystemStats } from '../sim/types';
 import { compareRows, pinLabel, type PinnedRun } from './pinnedRun';
 import { Term } from './Tooltip';
@@ -33,10 +34,10 @@ export function PinBar({ pin, system, rps, canPin, onPin, onClear }: PinBarProps
       <div className="mx-pin" data-strip-skip="">
         <button type="button" className="btn btn-sm mx-pin-btn" onClick={onPin}>
           <Pin size={14} aria-hidden="true" />
-          Pin this run
+          {t('Pin this run')}
         </button>
         <span className="mx-pin-hint">
-          Keep these numbers, change something, then compare.
+          {t('Keep these numbers, change something, then compare.')}
         </span>
       </div>
     );
@@ -49,7 +50,7 @@ export function PinBar({ pin, system, rps, canPin, onPin, onClear }: PinBarProps
         <span className="mx-pin-swatch" aria-hidden="true" />
         <span className="num">{pinLabel(pin)}</span>
       </span>
-      <ul className="mx-pin-rows" aria-label="Pinned run against now">
+      <ul className="mx-pin-rows" aria-label={t('Pinned run against now')}>
         {rows.map((r) => (
           <li key={r.name} className="mx-pin-row">
             <span className="mx-pin-name">
@@ -59,10 +60,10 @@ export function PinBar({ pin, system, rps, canPin, onPin, onClear }: PinBarProps
             <span className="mx-pin-arrow" aria-hidden="true">
               →
             </span>
-            <span className="sr-only"> now </span>
+            <span className="sr-only">{t(' now ')}</span>
             <span className={`num mx-pin-now ${TONE_CLASS[r.tone]}`}>{r.now}</span>
             {r.tone === 'same' ? null : (
-              <span className="sr-only">{TONE_WORD[r.tone]}</span>
+              <span className="sr-only">{t(TONE_WORD[r.tone])}</span>
             )}
           </li>
         ))}
@@ -74,13 +75,13 @@ export function PinBar({ pin, system, rps, canPin, onPin, onClear }: PinBarProps
           onClick={onPin}
           disabled={!canPin}
         >
-          Pin again
+          {t('Pin again')}
         </button>
         <button
           type="button"
           className="btn btn-sm btn-icon mx-pin-clear"
-          aria-label="Clear the pinned run"
-          title="Clear the pinned run"
+          aria-label={t('Clear the pinned run')}
+          title={t('Clear the pinned run')}
           onClick={onClear}
         >
           <X size={14} aria-hidden="true" />

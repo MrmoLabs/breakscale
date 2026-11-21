@@ -1,4 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { t, tN, getLocale } from '../i18n';
+import { challengeCopy } from '../i18n/content/challenges';
 import { isCorrectnessGoal } from '../sim/challenge';
 import type { Challenge, ChallengeResult, Goal, GoalMetric } from '../sim/challenge';
 import {
@@ -113,12 +115,18 @@ const LABEL: Record<GoalMetric, string> = {
 
 /**
  * A goal's name, with the traffic source it is about when it is about one:
- * "Checkout users: requests lost".
+ * "Checkout users: requests lost". LABEL's values are data keys pinned by
+ * tests, so the translation happens here, at the render site.
  */
 function goalName(goal: Goal, nameOf: (id: string) => string): string {
-  if (goal.route === undefined) return LABEL[goal.metric];
   const label = LABEL[goal.metric];
-  return `${nameOf(goal.route)}: ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+  if (goal.route === undefined) return t(label);
+  const lowered = `${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+  return t('{name}: {label}', {
+    name: nameOf(goal.route),
+    // English lower-cases the label to fit the sentence; Chinese has no case.
+    label: getLocale() === 'zh' ? t(label) : lowered,
+  });
 }
 
 /** Goals that count things, which read "or fewer" rather than "or less". */
@@ -168,9 +176,11 @@ function formatLive(metric: GoalMetric, value: number): string {
 
 /** The line a goal has to stay under: "200ms or less", "none". */
 function limit(goal: Goal): string {
-  if (goal.max === 0) return 'none';
+  // "the goal is none" names the goal itself, not a limit: the inspector's
+  // 'none' key means "no limit" (不限), which would invert the meaning here.
+  if (goal.max === 0) return getLocale() === 'zh' ? '零次' : 'none';
   const n = formatGoal(goal.metric, goal.max);
-  return COUNTED.has(goal.metric) ? `${n} or fewer` : `${n} or less`;
+  return COUNTED.has(goal.metric) ? t('{n} or fewer', { n }) : t('{n} or less', { n });
 }
 
 /** One sentence on a missed goal, for the verdict line. */
@@ -181,28 +191,120 @@ function missLine(
 ): string {
   const a = formatGoal(goal.metric, actual);
   const one = actual === 1;
-  const end = `and the goal is ${limit(goal)}.`;
-  const requests =
-    goal.route === undefined ? 'requests' : `requests from ${nameOf(goal.route)}`;
+  const end = limit(goal);
+  const from = goal.route === undefined ? undefined : nameOf(goal.route);
   switch (goal.metric) {
     case 'p99':
-      return `The slowest 1 in 100 ${requests} took ${a}, ${end}`;
+      return from
+        ? t(
+            'The slowest 1 in 100 requests from {who} took {a}, and the goal is {goal}.',
+            {
+              who: from,
+              a,
+              goal: end,
+            },
+          )
+        : t('The slowest 1 in 100 requests took {a}, and the goal is {goal}.', {
+            a,
+            goal: end,
+          });
     case 'p95':
-      return `The slowest 1 in 20 ${requests} took ${a}, ${end}`;
+      return from
+        ? t(
+            'The slowest 1 in 20 requests from {who} took {a}, and the goal is {goal}.',
+            {
+              who: from,
+              a,
+              goal: end,
+            },
+          )
+        : t('The slowest 1 in 20 requests took {a}, and the goal is {goal}.', {
+            a,
+            goal: end,
+          });
     case 'errorRate':
-      return `${a} of ${requests} were lost, ${end}`;
+      return from
+        ? t('{a} of requests from {who} were lost, and the goal is {goal}.', {
+            a,
+            who: from,
+            goal: end,
+          })
+        : t('{a} of requests were lost, and the goal is {goal}.', { a, goal: end });
     case 'lostWrites':
-      return `${a} ${one ? 'save' : 'saves'} never reached the database, ${end}`;
+      return one
+        ? t('{a} save never reached the database, and the goal is {goal}.', {
+            a,
+            goal: end,
+          })
+        : t('{a} saves never reached the database, and the goal is {goal}.', {
+            a,
+            goal: end,
+          });
     case 'lostJobs':
-      return `${a} accepted ${one ? 'job' : 'jobs'} failed later, ${end}`;
+      return one
+        ? t('{a} accepted job failed later, and the goal is {goal}.', { a, goal: end })
+        : t('{a} accepted jobs failed later, and the goal is {goal}.', {
+            a,
+            goal: end,
+          });
     case 'queueDepth':
-      return `${a} ${one ? 'job was' : 'jobs were'} still waiting in the queue at the end, ${end}`;
+      return one
+        ? t(
+            '{a} job was still waiting in the queue at the end, and the goal is {goal}.',
+            {
+              a,
+              goal: end,
+            },
+          )
+        : t(
+            '{a} jobs were still waiting in the queue at the end, and the goal is {goal}.',
+            {
+              a,
+              goal: end,
+            },
+          );
     case 'doubleCharges':
-      return `${a} ${one ? 'payment was' : 'payments were'} charged more than once, ${end}`;
+      return one
+        ? t('{a} payment was charged more than once, and the goal is {goal}.', {
+            a,
+            goal: end,
+          })
+        : t('{a} payments were charged more than once, and the goal is {goal}.', {
+            a,
+            goal: end,
+          });
     case 'lostAckedWrites':
-      return `${a} ${one ? 'save' : 'saves'} the client heard succeed never reached storage, ${end}`;
+      return one
+        ? t(
+            '{a} save the client heard succeed never reached storage, and the goal is {goal}.',
+            {
+              a,
+              goal: end,
+            },
+          )
+        : t(
+            '{a} saves the client heard succeed never reached storage, and the goal is {goal}.',
+            {
+              a,
+              goal: end,
+            },
+          );
     case 'staleReads':
-      return `${a} ${one ? 'read' : 'reads'} missed a write the same client heard succeed, ${end}`;
+      return one
+        ? t(
+            '{a} read missed a write the same client heard succeed, and the goal is {goal}.',
+            {
+              a,
+              goal: end,
+            },
+          )
+        : t(
+            '{a} reads missed a write the same client heard succeed, and the goal is {goal}.',
+            {
+              a,
+              goal: end,
+            },
+          );
   }
 }
 
@@ -244,18 +346,21 @@ function reasonLine(run: RunResult): string | null {
     }
   }
   if (top === null || run.failed <= 0) return null;
-  const phrase = REASON_PHRASE[top];
-  if (most >= run.failed) return `Every lost request was ${phrase}.`;
+  const phrase = t(REASON_PHRASE[top]);
+  if (most >= run.failed) return t('Every lost request was {phrase}.', { phrase });
   const share = formatShareDown(most / run.failed);
   return most * 2 > run.failed
-    ? `Most lost requests (${share}) were ${phrase}.`
-    : `The largest share of lost requests (${share}) were ${phrase}.`;
+    ? t('Most lost requests ({share}) were {phrase}.', { share, phrase })
+    : t('The largest share of lost requests ({share}) were {phrase}.', {
+        share,
+        phrase,
+      });
 }
 
 /** "run 2", numbered the way the reader counts them rather than by seed. */
 function runName(run: RunResult): string {
   const i = CHECK_SEEDS.indexOf(run.seed);
-  return `run ${i >= 0 ? i + 1 : run.seed}`;
+  return t('run {n}', { n: i >= 0 ? i + 1 : run.seed });
 }
 
 /**
@@ -282,39 +387,49 @@ function verdictLine(verdict: Verdict, nameOf: (id: string) => string): VerdictL
   switch (verdict.status) {
     case 'passed':
       return {
-        word: 'Passed',
-        why: `Your design met every goal in all ${CHECK_SEEDS.length} test runs.`,
+        word: t('Passed'),
+        why: t('Your design met every goal in all {n} test runs.', {
+          n: CHECK_SEEDS.length,
+        }),
         tone: 'ok',
       };
     case 'goal-missed': {
       const miss = verdict.deciding.goals.find((g) => !g.met);
       return {
-        word: 'Not yet',
-        why: miss ? missLine(miss.goal, miss.actual, nameOf) : 'A goal was missed.',
+        word: t('Not yet'),
+        why: miss ? missLine(miss.goal, miss.actual, nameOf) : t('A goal was missed.'),
         tone: 'danger',
       };
     }
     case 'nothing-completed':
       return {
-        word: 'Not yet',
-        why: 'No request got an answer at all.',
+        word: t('Not yet'),
+        why: t('No request got an answer at all.'),
         tone: 'danger',
       };
     case 'falling-behind':
       return {
-        word: 'Not yet',
-        why: `Only ${formatShareDown(verdict.deciding.keptUp)} of the requests sent got an answer by the end, and the rest were still waiting.`,
+        word: t('Not yet'),
+        why: t(
+          'Only {share} of the requests sent got an answer by the end, and the rest were still waiting.',
+          { share: formatShareDown(verdict.deciding.keptUp) },
+        ),
         tone: 'danger',
       };
     case 'over-budget':
       return {
-        word: 'Over budget',
-        why: `This design adds ${verdict.budget.used} ${verdict.budget.used === 1 ? 'slot' : 'slots'} and the brief allows ${verdict.budget.allowed}.`,
+        word: t('Over budget'),
+        why: tN(
+          verdict.budget.used,
+          'This design adds {n} slot and the brief allows {allowed}.',
+          'This design adds {n} slots and the brief allows {allowed}.',
+          { allowed: verdict.budget.allowed },
+        ),
         tone: 'warn',
       };
     case 'unjudgeable':
       return {
-        word: 'Cannot check yet',
+        word: t('Cannot check yet'),
         why: unjudgeableLine(verdict.why, nameOf),
         tone: 'warn',
       };
@@ -344,9 +459,13 @@ function baselineLine(
   const { why } = verdictLine(verdict, nameOf);
   const trouble = briefTrouble(challenge, nameOf);
   return {
-    word: 'As it starts',
+    word: t('As it starts'),
     why: trouble
-      ? `When ${trouble.what} at ${trouble.atMs / 1000}s, ${why.charAt(0).toLowerCase()}${why.slice(1)}`
+      ? t('When {what} at {at}s, {why}', {
+          what: trouble.what,
+          at: trouble.atMs / 1000,
+          why: `${why.charAt(0).toLowerCase()}${why.slice(1)}`,
+        })
       : why,
     tone: 'base',
   };
@@ -355,25 +474,53 @@ function baselineLine(
 function unjudgeableLine(why: Unjudgeable, nameOf: (id: string) => string): string {
   switch (why.reason) {
     case 'no-traffic':
-      return 'There is no client left to send traffic. Put one back.';
+      return t('There is no client left to send traffic. Put one back.');
     case 'fault-target-missing':
-      return `The brief breaks ${nameOf(why.target)} on purpose, and this design no longer has one it can break that way. Put it back.`;
+      return t(
+        'The brief breaks {target} on purpose, and this design no longer has one it can break that way. Put it back.',
+        { target: nameOf(why.target) },
+      );
     case 'traffic-added':
-      return 'This design has a client the brief does not. Take the new one out.';
+      return t('This design has a client the brief does not. Take the new one out.');
     case 'component-missing':
-      return `Requests no longer reach every ${KIND_NAME[why.kind].toLowerCase()} the brief started with. Put it back or connect it again.`;
+      return t(
+        'Requests no longer reach every {kind} the brief started with. Put it back or connect it again.',
+        { kind: KIND_NAME[why.kind].toLowerCase() },
+      );
     case 'connection-cut':
-      return `Requests no longer get from ${nameOf(why.from)} to ${nameOf(why.to)}. Connect them again; you can put new parts in between.`;
+      return t(
+        'Requests no longer get from {from} to {to}. Connect them again; you can put new parts in between.',
+        { from: nameOf(why.from), to: nameOf(why.to) },
+      );
     case 'connection-added':
-      return `${nameOf(why.from)} now sends requests straight to ${nameOf(why.to)}, which skips part of the system. Take that connection out.`;
+      return t(
+        '{from} now sends requests straight to {to}, which skips part of the system. Take that connection out.',
+        { from: nameOf(why.from), to: nameOf(why.to) },
+      );
     case 'shortcut-added':
       return why.allowed > 0
-        ? `This brief allows one new ${KIND_NAME[why.kind].toLowerCase()}, and this design adds more. A row of them hides the problem instead of fixing it, so take the extra ones out.`
-        : `A new ${KIND_NAME[why.kind].toLowerCase()} would answer requests before the work behind it is done, and this brief does not allow one. Take it out.`;
+        ? t(
+            'This brief allows one new {kind}, and this design adds more. A row of them hides the problem instead of fixing it, so take the extra ones out.',
+            { kind: KIND_NAME[why.kind].toLowerCase() },
+          )
+        : t(
+            'A new {kind} would answer requests before the work behind it is done, and this brief does not allow one. Take it out.',
+            { kind: KIND_NAME[why.kind].toLowerCase() },
+          );
     case 'dead-end-added':
-      return `${nameOf(why.nodeId)} answers requests without passing them on, so they never reach the rest of the system. Connect it onward or take it out.`;
+      return t(
+        '{node} answers requests without passing them on, so they never reach the rest of the system. Connect it onward or take it out.',
+        { node: nameOf(why.nodeId) },
+      );
     case 'standby-first':
-      return `${nameOf(why.regionId)} serves from ${nameOf(why.activeId)} from the start, so its requests skip ${nameOf(why.nodeId)} and the fault in the brief never touches them. Have ${nameOf(why.regionId)} serve from ${nameOf(why.nodeId)} first.`;
+      return t(
+        '{region} serves from {active} from the start, so its requests skip {node} and the fault in the brief never touches them. Have {region} serve from {node} first.',
+        {
+          region: nameOf(why.regionId),
+          active: nameOf(why.activeId),
+          node: nameOf(why.nodeId),
+        },
+      );
   }
 }
 
@@ -396,21 +543,22 @@ function toneOf(view: CheckView, fresh: boolean): Tone {
 }
 
 function chipOf(view: CheckView, fresh: boolean): string {
-  if (view.status === 'stale') return view.hadVerdict ? 'Changed' : 'Not checked yet';
-  if (view.status === 'checking') return 'Checking';
-  if (fresh && missed(view.verdict)) return 'As it starts';
+  if (view.status === 'stale')
+    return view.hadVerdict ? t('Changed') : t('Not checked yet');
+  if (view.status === 'checking') return t('Checking');
+  if (fresh && missed(view.verdict)) return t('As it starts');
   switch (view.verdict.status) {
     case 'passed':
-      return 'Passed';
+      return t('Passed');
     case 'goal-missed':
     case 'nothing-completed':
-      return 'Not yet';
+      return t('Not yet');
     case 'falling-behind':
-      return 'Falling behind';
+      return t('Falling behind');
     case 'over-budget':
-      return 'Over budget';
+      return t('Over budget');
     case 'unjudgeable':
-      return 'Cannot check yet';
+      return t('Cannot check yet');
   }
 }
 
@@ -436,7 +584,7 @@ function GoalList({
   titleId: string;
   nameOf: (id: string) => string;
 }) {
-  const pending = check.status === 'checking' ? 'Checking' : 'Not checked yet';
+  const pending = check.status === 'checking' ? t('Checking') : t('Not checked yet');
   return (
     <ul className="chal-goals" aria-labelledby={titleId}>
       {challenge.goals.map((goal, i) => {
@@ -460,13 +608,15 @@ function GoalList({
             <span className="num chal-goal-actual">
               {row ? formatGoal(goal.metric, row.actual) : null}
             </span>
-            <span className="chal-goal-target">Goal: {limit(goal)}</span>
+            <span className="chal-goal-target">
+              {t('Goal: {v}', { v: limit(goal) })}
+            </span>
             <span className="chal-goal-state">
-              {row ? (row.met ? 'Met' : 'Not met') : pending}
+              {row ? (row.met ? t('Met') : t('Not met')) : pending}
             </span>
             {nowShown ? (
               <span className="chal-goal-now">
-                Right now{' '}
+                {t('Right now')}{' '}
                 <span className="num">{formatLive(goal.metric, now.actual)}</span>
               </span>
             ) : null}
@@ -691,7 +841,10 @@ export function ChallengePanel({
         ? evidenceSentence(evidence, { node: nameOf, edge: nameOf })
         : reasonLine(deciding)
       : null;
-  const shown = challenge.hints.slice(0, hintsShown);
+  // The brief's display text, in the reader's language. The goals, the
+  // budget and the faults stay on the original: the engine reads them.
+  const copy = challengeCopy(challenge);
+  const shown = copy.hints.slice(0, hintsShown);
   const warmS = challenge.warmupS ?? DEFAULT_WARMUP_S;
   const endS = warmS + (challenge.windowS ?? DEFAULT_WINDOW_S);
 
@@ -704,9 +857,9 @@ export function ChallengePanel({
     >
       <header className="chal-head">
         <div className="chal-head-text">
-          <p className="label chal-kicker">Challenge</p>
+          <p className="label chal-kicker">{t('Challenge')}</p>
           <h2 id={headingId} ref={headingRef} className="chal-name" tabIndex={-1}>
-            {challenge.name}
+            {copy.name}
           </h2>
         </div>
         {/* Only while folded: open, the verdict line says the same. */}
@@ -716,8 +869,8 @@ export function ChallengePanel({
           className="btn btn-ghost btn-sm btn-icon chal-collapse"
           aria-expanded={!shut}
           aria-controls={bodyId}
-          aria-label={shut ? 'Show the brief' : 'Hide the brief'}
-          title={shut ? 'Show the brief' : 'Hide the brief'}
+          aria-label={shut ? t('Show the brief') : t('Hide the brief')}
+          title={shut ? t('Show the brief') : t('Hide the brief')}
           onClick={() =>
             besideInspector ? setFolded((f) => !f) : setCollapsed((c) => !c)
           }
@@ -735,10 +888,14 @@ export function ChallengePanel({
       </p>
 
       <div id={bodyId} className="chal-body" hidden={shut}>
-        <p className="chal-brief">{challenge.brief}</p>
+        <p className="chal-brief">{copy.brief}</p>
 
         <p id={goalsId} className="label chal-goals-title">
-          In the {CHECK_SEEDS.length} test runs ({warmS}s to {endS}s)
+          {t('In the {n} test runs ({from}s to {to}s)', {
+            n: CHECK_SEEDS.length,
+            from: warmS,
+            to: endS,
+          })}
         </p>
         <GoalList
           challenge={challenge}
@@ -751,8 +908,10 @@ export function ChallengePanel({
         {liveOver ? (
           <p className="chal-note">
             {settling
-              ? 'Live numbers still include requests from before your change.'
-              : 'Live numbers move with the run on screen. The test runs decide the pass.'}
+              ? t('Live numbers still include requests from before your change.')
+              : t(
+                  'Live numbers move with the run on screen. The test runs decide the pass.',
+                )}
           </p>
         ) : null}
 
@@ -763,25 +922,32 @@ export function ChallengePanel({
         ) : (
           <p className="chal-verdict is-pending">
             {check.status === 'checking'
-              ? 'Checking…'
+              ? t('Checking…')
               : check.status === 'stale' && check.hadVerdict
-                ? 'You changed the design. It gets checked again a second after you stop.'
-                : 'Your design gets checked a second after it stops changing.'}
+                ? t(
+                    'You changed the design. It gets checked again a second after you stop.',
+                  )
+                : t('Your design gets checked a second after it stops changing.')}
           </p>
         )}
 
         {countdown ? (
           <p className="chal-countdown">
-            {countdown.noun} in <span className="num">{countdown.seconds}s</span>
+            {t('{noun} in', { noun: countdown.noun })}{' '}
+            <span className="num">{countdown.seconds}s</span>
           </p>
         ) : null}
 
         {budget ? (
           <p className={`chal-budget${budget.used > budget.allowed ? ' is-over' : ''}`}>
             {budget.allowed === 0
-              ? 'You cannot add any slots here.'
-              : `You can add up to ${budget.allowed} more ${budget.allowed === 1 ? 'slot' : 'slots'}.`}{' '}
-            Used: <span className="num">{budget.used}</span>.
+              ? t('You cannot add any slots here.')
+              : tN(
+                  budget.allowed,
+                  'You can add up to {n} more slot.',
+                  'You can add up to {n} more slots.',
+                )}{' '}
+            {t('Used:')} <span className="num">{budget.used}</span>.
           </p>
         ) : null}
 
@@ -791,8 +957,8 @@ export function ChallengePanel({
              its key is current. Shown from the start it is the answer, and
              the brief stops being one. */
           <div className="chal-lesson">
-            <h3 className="chal-lesson-title">What you learned</h3>
-            <p className="chal-lesson-text">{challenge.lesson}</p>
+            <h3 className="chal-lesson-title">{t('What you learned')}</h3>
+            <p className="chal-lesson-text">{copy.lesson}</p>
           </div>
         ) : (
           <div className="chal-help">
@@ -806,16 +972,16 @@ export function ChallengePanel({
                 {text}
               </p>
             ))}
-            {hintsShown < challenge.hints.length ? (
+            {hintsShown < copy.hints.length ? (
               <button
                 type="button"
                 className="btn btn-sm btn-ghost chal-more"
                 onClick={() => {
-                  hintFocus.current = hintsShown + 1 === challenge.hints.length;
+                  hintFocus.current = hintsShown + 1 === copy.hints.length;
                   onHint();
                 }}
               >
-                {hintsShown === 0 ? 'Give me a hint' : 'Another hint'}
+                {hintsShown === 0 ? t('Give me a hint') : t('Another hint')}
               </button>
             ) : null}
           </div>
@@ -829,7 +995,7 @@ export function ChallengePanel({
             aria-controls={detailsId}
             onClick={() => setDetailsOpen((o) => !o)}
           >
-            Details
+            {t('Details')}
             <Chevron open={detailsOpen} />
           </button>
           <div id={detailsId} className="chal-details-body" hidden={!detailsOpen}>
@@ -839,18 +1005,21 @@ export function ChallengePanel({
               aria-labelledby={`${detailsId}-live`}
             >
               <p id={`${detailsId}-live`} className="label chal-block-title">
-                Right now on screen
+                {t('Right now on screen')}
               </p>
               {live && liveFlowing ? (
                 <div className="chal-live">
                   <LiveRows rows={live.goals} nameOf={nameOf} />
                 </div>
               ) : (
-                <p className="chal-note">Nothing is getting through right now.</p>
+                <p className="chal-note">
+                  {t('Nothing is getting through right now.')}
+                </p>
               )}
               <p className="chal-note">
-                These numbers move with the run on screen. Only the check decides a
-                pass.
+                {t(
+                  'These numbers move with the run on screen. Only the check decides a pass.',
+                )}
               </p>
             </div>
 
@@ -860,14 +1029,19 @@ export function ChallengePanel({
               aria-labelledby={`${detailsId}-check`}
             >
               <p id={`${detailsId}-check`} className="label chal-block-title">
-                The check
+                {t('The check')}
               </p>
               <p className="chal-note">
-                The check plays your design {CHECK_SEEDS.length} times, each with
-                slightly different random traffic. It counts from {warmS}s to {endS}s of
-                each run.
+                {t(
+                  'The check plays your design {n} times, each with slightly different random traffic. It counts from {from}s to {to}s of each run.',
+                  {
+                    n: CHECK_SEEDS.length,
+                    from: warmS,
+                    to: endS,
+                  },
+                )}
                 {challenge.goals.some(isCorrectnessGoal)
-                  ? ` Then it plays ${CORRECTNESS_SETTLE_MS / 1000}s more, so a try still running can finish before it checks the data.`
+                  ? ` ${t('Then it plays {n}s more, so a try still running can finish before it checks the data.', { n: CORRECTNESS_SETTLE_MS / 1000 })}`
                   : null}
               </p>
               {check.status === 'checking' ? (
@@ -875,7 +1049,7 @@ export function ChallengePanel({
                   <div
                     className="chal-progress"
                     role="progressbar"
-                    aria-label="Checking your design"
+                    aria-label={t('Checking your design')}
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={Math.floor(check.done * 100)}
@@ -888,22 +1062,30 @@ export function ChallengePanel({
                     />
                   </div>
                   <p className="chal-note">
-                    Checking run {check.run + 1} of {CHECK_SEEDS.length}
+                    {t('Checking run {a} of {b}', {
+                      a: check.run + 1,
+                      b: CHECK_SEEDS.length,
+                    })}
                   </p>
                 </>
               ) : null}
               {deciding ? (
                 <p className="chal-note">
-                  {passed ? 'Closest call' : 'Decided by'}: {runName(deciding)}, with{' '}
-                  <span className="num">{formatCount(deciding.arrived)}</span> requests
-                  counted.
+                  {t('{prefix}: {run}', {
+                    prefix: t(passed ? 'Closest call' : 'Decided by'),
+                    run: runName(deciding),
+                  })}
+                  {t(', with ')}
+                  <span className="num">{formatCount(deciding.arrived)}</span>
+                  {t(' requests counted.')}
                 </p>
               ) : null}
               {reason ? <p className="chal-note">{reason}</p> : null}
               {verdict?.status === 'over-budget' ? (
                 <p className="chal-note">
-                  A slot is one request a component can work on at once. Take some away
-                  and it gets checked.
+                  {t(
+                    'A slot is one request a component can work on at once. Take some away and it gets checked.',
+                  )}
                 </p>
               ) : null}
               <div className="chal-actions">
@@ -913,7 +1095,7 @@ export function ChallengePanel({
                     className="btn btn-sm"
                     onClick={() => onWatch(deciding.seed)}
                   >
-                    Watch {runName(deciding)}
+                    {t('Watch {run}', { run: runName(deciding) })}
                   </button>
                 ) : null}
                 {/* Kept in place while a check runs, so pressing it does not
@@ -924,7 +1106,7 @@ export function ChallengePanel({
                   aria-disabled={check.status === 'checking' ? true : undefined}
                   onClick={check.status === 'checking' ? undefined : onCheckAgain}
                 >
-                  Check again
+                  {t('Check again')}
                 </button>
               </div>
             </div>
@@ -934,15 +1116,15 @@ export function ChallengePanel({
         <div ref={footRef} className="chal-foot">
           {passed && onNext ? (
             <button type="button" className="btn btn-sm btn-primary" onClick={onNext}>
-              {nextLabel}
+              {t(nextLabel)}
             </button>
           ) : null}
           <button type="button" className="btn btn-sm" onClick={onLeave}>
-            Back to my design
+            {t('Back to my design')}
           </button>
           {onCopyLink ? (
             <button type="button" className="btn btn-sm btn-ghost" onClick={onCopyLink}>
-              Copy link
+              {t('Copy link')}
             </button>
           ) : null}
           {onStartOver ? (
@@ -956,7 +1138,7 @@ export function ChallengePanel({
                 headingRef.current?.focus();
               }}
             >
-              Start over
+              {t('Start over')}
             </button>
           ) : null}
         </div>

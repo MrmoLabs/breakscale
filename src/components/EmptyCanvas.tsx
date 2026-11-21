@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import './EmptyCanvas.css';
 
 export interface EmptyCanvasProps {
@@ -26,13 +27,13 @@ export interface EmptyCanvasProps {
 export function EmptyCanvas({ actions }: EmptyCanvasProps) {
   return (
     <div className="cv-empty" data-chrome="">
-      <p className="cv-empty-lead">Nothing here yet</p>
+      <p className="cv-empty-lead">{t('Nothing here yet')}</p>
       <p className="cv-empty-body">
         <span className="cv-empty-wide">
-          Drag a client, a service and a database in from the left.
+          {t('Drag a client, a service and a database in from the left.')}
         </span>
         <span className="cv-empty-phone">
-          Open Build to add a client, a service and a database.
+          {t('Open Build to add a client, a service and a database.')}
         </span>
       </p>
       {actions && (
@@ -42,21 +43,21 @@ export function EmptyCanvas({ actions }: EmptyCanvasProps) {
             className="btn btn-primary btn-sm"
             onClick={actions.onStartSimple}
           >
-            Start with one service
+            {t('Start with one service')}
           </button>
           <button
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={actions.onBrowseExamples}
           >
-            Browse examples
+            {t('Browse examples')}
           </button>
           <button
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={actions.onTryChallenge}
           >
-            Try a challenge
+            {t('Try a challenge')}
           </button>
         </div>
       )}

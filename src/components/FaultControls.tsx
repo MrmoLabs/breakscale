@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Ellipsis } from 'lucide-react';
 import { HintLine } from './HintLine';
+import { t, tN } from '../i18n';
 import type { ActiveDuplicate, ActiveFailure, ActiveReplyCut } from '../sim/types';
 import { formatPct } from './format';
 import {
@@ -170,12 +171,14 @@ export function NodeFaultControls({
             aria-describedby={`${id}-hint`}
             onClick={guarded(crashed, onCrash)}
           >
-            {crashed ? 'Crashed' : 'Crash'}
+            {crashed ? t('Crashed') : t('Crash')}
           </button>
           <HintLine
             id={`${id}-hint`}
             about="Crash"
-            text="Stops it completely until you press Fix. Work it was holding is lost."
+            text={t(
+              'Stops it completely until you press Fix. Work it was holding is lost.',
+            )}
           />
         </div>
       );
@@ -184,7 +187,7 @@ export function NodeFaultControls({
       panel = (
         <div className="ins-fault-row">
           <label className="row-k" htmlFor={`${id}-down`}>
-            Down for
+            {t('Down for')}
           </label>
           <div className="ins-fault-pair">
             <select
@@ -206,13 +209,13 @@ export function NodeFaultControls({
               aria-describedby={`${id}-hint`}
               onClick={guarded(restartInert, () => onRestart(downMs))}
             >
-              Restart
+              {t('Restart')}
             </button>
           </div>
           <HintLine
             id={`${id}-hint`}
             about="Restart"
-            text={`Stops it, then it starts again by itself. Work in progress is lost.${restartLoses ? ` ${restartLoses}` : ''}`}
+            text={`${t('Stops it, then it starts again by itself. Work in progress is lost.')}${restartLoses ? ` ${restartLoses}` : ''}`}
           />
         </div>
       );
@@ -228,12 +231,15 @@ export function NodeFaultControls({
             aria-describedby={`${id}-hint`}
             onClick={guarded(oneDown, () => onCrashOne?.())}
           >
-            {oneDown ? 'One instance down' : 'Crash one instance'}
+            {oneDown ? t('One instance down') : t('Crash one instance')}
           </button>
           <HintLine
             id={`${id}-hint`}
             about="Crash one instance"
-            text={`Stops one of its ${instances} machines. The work on that machine is lost, and the other ${instances - 1} keep serving with fewer slots between them.`}
+            text={t(
+              'Stops one of its {n} machines. The work on that machine is lost, and the other {rest} keep serving with fewer slots between them.',
+              { n: instances, rest: instances - 1 },
+            )}
           />
         </div>
       );
@@ -242,7 +248,7 @@ export function NodeFaultControls({
       panel = (
         <div className="ins-fault-row">
           <label className="row-k" htmlFor={`${id}-factor`}>
-            How much slower
+            {t('How much slower')}
           </label>
           <div className="ins-fault-pair">
             <select
@@ -266,7 +272,7 @@ export function NodeFaultControls({
               aria-describedby={`${id}-hint`}
               onClick={guarded(slowInert, () => onSlow(factor))}
             >
-              {slowSame ? 'Slowed' : 'Slow'}
+              {slowSame ? t('Slowed') : t('Slow')}
             </button>
           </div>
           <HintLine
@@ -274,8 +280,10 @@ export function NodeFaultControls({
             about="Slow"
             text={
               canSlow
-                ? 'Every request takes that many times longer to handle.'
-                : 'It does no work of its own that takes time, so there is nothing here to slow down. Try it on a component that handles requests.'
+                ? t('Every request takes that many times longer to handle.')
+                : t(
+                    'It does no work of its own that takes time, so there is nothing here to slow down. Try it on a component that handles requests.',
+                  )
             }
           />
         </div>
@@ -285,7 +293,7 @@ export function NodeFaultControls({
       panel = (
         <div className="ins-fault-row">
           <label className="row-k" htmlFor={`${id}-pause`}>
-            Stall for
+            {t('Stall for')}
           </label>
           <div className="ins-fault-pair">
             <select
@@ -307,13 +315,15 @@ export function NodeFaultControls({
               aria-describedby={`${id}-hint`}
               onClick={guarded(paused, () => onPause?.(pauseMs))}
             >
-              Stall
+              {t('Stall')}
             </button>
           </div>
           <HintLine
             id={`${id}-hint`}
             about="Stall"
-            text="It freezes for that long, then carries on by itself. A long garbage collection pause stalls a program the same way. It returns no errors itself, but callers that give up waiting fail or send the same request again."
+            text={t(
+              'It freezes for that long, then carries on by itself. A long garbage collection pause stalls a program the same way. It returns no errors itself, but callers that give up waiting fail or send the same request again.',
+            )}
           />
         </div>
       );
@@ -322,7 +332,7 @@ export function NodeFaultControls({
       panel = (
         <div className="ins-fault-row">
           <label className="row-k" htmlFor={`${id}-rate`}>
-            Requests that fail
+            {t('Requests that fail')}
           </label>
           <div className="ins-fault-pair">
             <select
@@ -345,13 +355,13 @@ export function NodeFaultControls({
               aria-describedby={`${id}-hint`}
               onClick={guarded(glitchSame, () => onGlitch(rate))}
             >
-              {glitchSame ? 'Glitching' : 'Glitch'}
+              {glitchSame ? t('Glitching') : t('Glitch')}
             </button>
           </div>
           <HintLine
             id={`${id}-hint`}
             about="Glitch"
-            text="It stays up, but that share of its answers are errors."
+            text={t('It stays up, but that share of its answers are errors.')}
           />
         </div>
       );
@@ -370,7 +380,7 @@ export function NodeFaultControls({
       {/* Native radios: the arrows move between them and a screen reader
           hears "Slow, radio button, 4 of 6" without any wiring here. */}
       <fieldset className="ins-seg">
-        <legend className="sr-only">Fault to try</legend>
+        <legend className="sr-only">{t('Fault to try')}</legend>
         {offered.map((p) => {
           const live = fault?.kind === p;
           return (
@@ -386,8 +396,8 @@ export function NodeFaultControls({
                 checked={p === pick}
                 onChange={() => setChosen(p)}
               />
-              {PICK_LABEL[p]}
-              {live ? <span className="sr-only">, in force</span> : null}
+              {t(PICK_LABEL[p])}
+              {live ? <span className="sr-only">{t(', in force')}</span> : null}
             </label>
           );
         })}
@@ -403,13 +413,13 @@ export function NodeFaultControls({
           aria-disabled={healthy}
           onClick={guarded(healthy, onFix)}
         >
-          Fix
+          {t('Fix')}
         </button>
       </div>
 
       {cables.length > 0 && (
         <div className="ins-fault-cables">
-          <h3 className="label ins-fault-sub">Connections</h3>
+          <h3 className="label ins-fault-sub">{t('Connections')}</h3>
           <ul className="ins-fault-list">
             {cables.map((c) => {
               const extras =
@@ -419,8 +429,8 @@ export function NodeFaultControls({
                 onCutReplies &&
                 onRestoreReplies;
               const notes = [
-                c.duplicating ? 'duplicating' : null,
-                c.repliesCut ? 'answers cut' : null,
+                c.duplicating ? t('duplicating') : null,
+                c.repliesCut ? t('answers cut') : null,
               ].filter((n): n is string => n !== null);
               return (
                 <li key={c.id} className="ins-fault-cable">
@@ -433,9 +443,11 @@ export function NodeFaultControls({
                   >
                     {c.label}
                     {c.state === 'connected' ? null : (
-                      <span className="sr-only">, cut</span>
+                      <span className="sr-only">{t(', cut')}</span>
                     )}
-                    {notes.length > 0 ? `, ${notes.join(', ')}` : null}
+                    {notes.length > 0
+                      ? t(', {notes}', { notes: notes.join(t(', ')) })
+                      : null}
                   </span>
                   <span className="ins-fault-cable-acts">
                     <CableButton
@@ -500,9 +512,11 @@ function RecordedFaults({
   return (
     <div className="ins-fault-row ins-fault-recorded">
       <p id={id} className="ins-hint">
-        {recorded === 1 ? '1 fault is' : `${recorded} faults are`} saved with this run.
-        Reset plays {recorded === 1 ? 'it' : 'them'} again at the same moments, and a
-        replay link sends {recorded === 1 ? 'it' : 'them'} along.
+        {tN(
+          recorded,
+          '1 fault is saved with this run. Reset plays it again at the same moments, and a replay link sends it along.',
+          '{n} faults are saved with this run. Reset plays them again at the same moments, and a replay link sends them along.',
+        )}
       </p>
       <button
         type="button"
@@ -519,7 +533,7 @@ function RecordedFaults({
           onForget();
         }}
       >
-        Forget saved faults
+        {t('Forget saved faults')}
       </button>
     </div>
   );
@@ -545,18 +559,16 @@ function CableButton({
   /** "Cut" rather than "Cut connection", for a row already headed by the connection. */
   short?: boolean;
 }) {
-  const suffix = named
-    ? ` ${cable.label.charAt(0).toLowerCase()}${cable.label.slice(1)}`
-    : '';
+  const who = `${cable.label.charAt(0).toLowerCase()}${cable.label.slice(1)}`;
   if (cable.state === 'connected') {
     return (
       <button
         type="button"
         className="btn btn-sm"
-        aria-label={named ? `Cut connection${suffix}` : undefined}
+        aria-label={named ? t('Cut connection {name}', { name: who }) : undefined}
         onClick={() => onCut(cable.id)}
       >
-        {short ? 'Cut' : 'Cut connection'}
+        {short ? t('Cut') : t('Cut connection')}
       </button>
     );
   }
@@ -565,11 +577,11 @@ function CableButton({
     <button
       type="button"
       className="btn btn-sm"
-      aria-label={named ? `Restore${suffix}` : undefined}
+      aria-label={named ? t('Restore {name}', { name: who }) : undefined}
       aria-disabled={inert}
       onClick={guarded(inert, () => onRestore(cable.id))}
     >
-      Restore
+      {t('Restore')}
     </button>
   );
 }
@@ -632,7 +644,7 @@ function CableMenu({
         ref={toggleRef}
         type="button"
         className="btn btn-sm ins-cable-more-btn"
-        aria-label={`More for the connection ${named}`}
+        aria-label={t('More for the connection {name}', { name: named })}
         aria-expanded={open}
         aria-controls={open ? id : undefined}
         onClick={() => setOpen((o) => !o)}
@@ -645,44 +657,48 @@ function CableMenu({
             <button
               type="button"
               className="btn btn-sm"
-              aria-label={`Deliver once ${named}`}
+              aria-label={t('Deliver once {name}', { name: named })}
               onClick={() => onUndup(cable.id)}
             >
-              Deliver once
+              {t('Deliver once')}
             </button>
           ) : (
             <button
               type="button"
               className="btn btn-sm"
-              aria-label={`Duplicate ${formatPct(DEFAULT_DUP_RATE)} of requests ${named}`}
+              aria-label={t('Duplicate {rate} of requests {name}', {
+                rate: formatPct(DEFAULT_DUP_RATE),
+                name: named,
+              })}
               onClick={() => onDuplicate(cable.id, DEFAULT_DUP_RATE)}
             >
-              Duplicate
+              {t('Duplicate')}
             </button>
           )}
           {cable.repliesCut ? (
             <button
               type="button"
               className="btn btn-sm"
-              aria-label={`Let answers back ${named}`}
+              aria-label={t('Let answers back {name}', { name: named })}
               onClick={() => onRestoreReplies(cable.id)}
             >
-              Let answers back
+              {t('Let answers back')}
             </button>
           ) : (
             <button
               type="button"
               className="btn btn-sm"
-              aria-label={`Cut answers only ${named}`}
+              aria-label={t('Cut answers only {name}', { name: named })}
               onClick={() => onCutReplies(cable.id)}
             >
-              Cut answers
+              {t('Cut answers')}
             </button>
           )}
           <span className="ins-hint ins-cable-menu-note">
-            Duplicate delivers {formatPct(DEFAULT_DUP_RATE)} of its requests twice. Cut
-            answers lets requests through but loses what comes back. Select the
-            connection itself for more.
+            {t(
+              'Duplicate delivers {rate} of its requests twice. Cut answers lets requests through but loses what comes back. Select the connection itself for more.',
+              { rate: formatPct(DEFAULT_DUP_RATE) },
+            )}
           </span>
         </span>
       ) : null}
@@ -744,13 +760,20 @@ export function EdgeFaultControls({
   const status =
     cable.state === 'connected'
       ? dup !== null || replyCut !== null || stranded > 0
-        ? 'Requests get through.'
-        : 'Connected.'
+        ? t('Requests get through.')
+        : t('Connected.')
       : cable.state === 'cut'
-        ? 'Cut. Nothing crosses this connection until you restore it.'
+        ? t('Cut. Nothing crosses this connection until you restore it.')
         : cutBy
-          ? `Cut because ${cutBy} is cut off from its connections. Fix ${cutBy} to reconnect it.`
-          : 'Cut because a component at one end is cut off from its connections. Fix that component to reconnect it.';
+          ? t(
+              'Cut because {name} is cut off from its connections. Fix {name} to reconnect it.',
+              {
+                name: cutBy,
+              },
+            )
+          : t(
+              'Cut because a component at one end is cut off from its connections. Fix that component to reconnect it.',
+            );
   return (
     <div className="ins-fault">
       <p
@@ -836,7 +859,7 @@ function DuplicateRows({
     <>
       <div className="ins-fault-row">
         <label className="row-k" htmlFor={`${id}-dup`}>
-          Requests delivered twice
+          {t('Requests delivered twice')}
         </label>
         <div className="ins-fault-pair">
           <select
@@ -858,13 +881,13 @@ function DuplicateRows({
             aria-describedby={`${id}-dup-hint`}
             onClick={guarded(same, () => onDuplicate(edgeId, rate))}
           >
-            Duplicate
+            {t('Duplicate')}
           </button>
         </div>
         <p id={`${id}-dup-hint`} className="ins-hint">
-          The far end gets that share of requests a second time, the way a network that
-          resends a packet can, and does the work again. Idempotency keys there spot the
-          copy.
+          {t(
+            'The far end gets that share of requests a second time, the way a network that resends a packet can, and does the work again. Idempotency keys there spot the copy.',
+          )}
         </p>
       </div>
       <div className="ins-fault-row">
@@ -874,7 +897,7 @@ function DuplicateRows({
           aria-disabled={once}
           onClick={guarded(once, () => onUndup(edgeId))}
         >
-          Deliver once
+          {t('Deliver once')}
         </button>
       </div>
     </>
@@ -908,7 +931,7 @@ function ReplyCutRow({
           aria-describedby={id}
           onClick={() => onRestoreReplies(edgeId)}
         >
-          Let answers back
+          {t('Let answers back')}
         </button>
       ) : (
         <button
@@ -917,14 +940,22 @@ function ReplyCutRow({
           aria-describedby={id}
           onClick={() => onCutReplies(edgeId)}
         >
-          Cut answers only
+          {t('Cut answers only')}
         </button>
       )}
       <p id={id} className="ins-hint">
-        Requests still get through and do their work, but the answers never come back.
-        {callerWaits
-          ? ' The caller has no timeout, so every call that lost its answer stays stuck, even after you let answers back.'
-          : ' The caller waits until its timeout gives up, and with retries it does the work a second time.'}
+        {t(
+          'Requests still get through and do their work, but the answers never come back. {more}',
+          {
+            more: callerWaits
+              ? t(
+                  'The caller has no timeout, so every call that lost its answer stays stuck, even after you let answers back.',
+                )
+              : t(
+                  'The caller waits until its timeout gives up, and with retries it does the work a second time.',
+                ),
+          },
+        )}
       </p>
     </div>
   );
@@ -958,12 +989,15 @@ export function LinkLossControls({ lossRate, onLoss }: LinkLossControlsProps) {
         role="status"
       >
         {lossRate > 0
-          ? `Losing ${formatPct(lossRate)} of the requests sent across it. A caller with retries sends a lost request again.`
-          : 'Delivers every request sent across it.'}
+          ? t(
+              'Losing {rate} of the requests sent across it. A caller with retries sends a lost request again.',
+              { rate: formatPct(lossRate) },
+            )
+          : t('Delivers every request sent across it.')}
       </p>
       <div className="ins-fault-row">
         <label className="row-k" htmlFor={`${id}-loss`}>
-          Requests lost on the way
+          {t('Requests lost on the way')}
         </label>
         <div className="ins-fault-pair">
           <select
@@ -974,7 +1008,7 @@ export function LinkLossControls({ lossRate, onLoss }: LinkLossControlsProps) {
           >
             {rates.map((r) => (
               <option key={r} value={r}>
-                {r === 0 ? 'None' : formatPct(r)}
+                {r === 0 ? t('None') : formatPct(r)}
               </option>
             ))}
           </select>
@@ -985,12 +1019,13 @@ export function LinkLossControls({ lossRate, onLoss }: LinkLossControlsProps) {
             aria-describedby={`${id}-hint`}
             onClick={guarded(same, () => onLoss(rate))}
           >
-            Set loss
+            {t('Set loss')}
           </button>
         </div>
         <p id={`${id}-hint`} className="ins-hint">
-          Saved with the design, so it stays after Reset. The component at the other end
-          never sees a lost request.
+          {t(
+            'Saved with the design, so it stays after Reset. The component at the other end never sees a lost request.',
+          )}
         </p>
       </div>
     </div>

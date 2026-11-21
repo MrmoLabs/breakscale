@@ -154,8 +154,15 @@ import { TaskCard } from './learn/TaskCard';
 import { Tour } from './learn/Tour';
 import { useTour } from './learn/useTour';
 import { setPreference, togglePreference, usePreference } from './content/preferences';
-import type { ThemeChoice } from './content/preferences';
+import type { ThemeChoice, LanguageChoice } from './content/preferences';
+import { setLocaleOverride, t } from './i18n';
+import { applyLang } from './i18n/applyLang';
+import { displayLabel } from './i18n/display';
+import { challengeCopy } from './i18n/content/challenges';
+import { incidentCopy } from './i18n/content/incidents';
+import { presetCopy } from './i18n/content/presets';
 import { GLOSSARY } from './content/glossary';
+import { glossaryCopy } from './i18n/content/glossary';
 import { KIND_GROUPS, KIND_NAME } from './components/nodeVisuals';
 import { EMPTY_BOOT_PARAMS, parseBootParams } from './urlParams';
 import type { BootParams } from './urlParams';
@@ -592,7 +599,7 @@ function PanelSlot({
             onPointerCancel={endDrag}
             role="button"
             tabIndex={-1}
-            aria-label="Close panel"
+            aria-label={t('Close panel')}
             onClick={onDismiss}
           >
             <span className="app-grabber-bar" />
@@ -796,9 +803,10 @@ function shapedLiveRps(t: Topology, snapshot: SimSnapshot | null): number | null
 
 /**
  * Said after opening something from inside a brief, which goes back to the
- * reader's own design and replaces it, as opening it from there would.
+ * reader's own design and replaces it, as opening it from there would. Both
+ * templates below end with the same sentence, translated whole so each
+ * language can order it around the name.
  */
-const IN_PLACE = 'in place of your design. Undo brings yours back.';
 
 /* What makes two incident scenes the same run: boxes, settings and
    connections, not where the boxes sit. */
@@ -934,8 +942,8 @@ function bootWorkspace(): Boot {
   const notice =
     id === linked && store.active === null && stamp !== null
       ? attempt
-        ? 'Picked up where you left off. Your design is set aside until you leave.'
-        : 'Your design is set aside. It comes back when you leave.'
+        ? t('Picked up where you left off. Your design is set aside until you leave.')
+        : t('Your design is set aside. It comes back when you leave.')
       : null;
   return {
     session: { topology, rps: clientRps(topology), presetId: challenge.presetId },
@@ -1070,6 +1078,24 @@ export default function App() {
     lastThemeChoiceRef.current = themeChoice;
     applyTheme(themeOverrideRef.current ?? themeChoice);
   }, [themeChoice]);
+
+  /* The language mirrors the theme's shape exactly: a boot override for the
+     page view, dropped the moment the reader picks a language in Settings.
+     The locale itself lives in the i18n module; this synchronises the
+     document's own metadata (lang, tab title) and forces the whole tree to
+     re-render with the new strings, since App subscribes here. */
+  const languageChoice = usePreference('language');
+  const languageOverrideRef = useRef<LanguageChoice | null>(params.language);
+  const lastLanguageChoiceRef = useRef(languageChoice);
+
+  useLayoutEffect(() => {
+    if (lastLanguageChoiceRef.current !== languageChoice) {
+      languageOverrideRef.current = null;
+    }
+    lastLanguageChoiceRef.current = languageChoice;
+    setLocaleOverride(languageOverrideRef.current);
+    applyLang();
+  }, [languageChoice]);
   const [glossaryOpen, setGlossaryOpen] = useState(false);
   const [glossaryFocusId, setGlossaryFocusId] = useState<string | undefined>(undefined);
 
@@ -1402,22 +1428,22 @@ export default function App() {
   const menuItems = useMemo(
     () => [
       {
-        label: 'Learning path',
+        label: t('Learning path'),
         icon: 'M3 19a3 3 0 1 0 6 0 3 3 0 1 0-6 0M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15M15 5a3 3 0 1 0 6 0 3 3 0 1 0-6 0',
         onSelect: () => setPathOpen(true),
       },
       {
-        label: 'Your designs',
+        label: t('Your designs'),
         icon: 'M4 4a2 2 0 0 1 2-2h7l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM13 2v5h5M9 13h6M9 17h6',
         onSelect: () => setDesignsOpen(true),
       },
       {
-        label: 'Challenges',
+        label: t('Challenges'),
         icon: 'M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0z',
         onSelect: () => setChallengesOpen(true),
       },
       {
-        label: 'Can you break it?',
+        label: t('Can you break it?'),
         icon: 'M13 2 3 14h9l-1 8 10-12h-9l1-8z',
         ...(coarse ? {} : { hint: 'F' }),
         // A brief owns its faults and its check, so this waits for the
@@ -1429,12 +1455,12 @@ export default function App() {
         },
       },
       {
-        label: 'Examples',
+        label: t('Examples'),
         icon: 'M3 4a1 1 0 0 1 1-1h6v7H3zM14 3h6a1 1 0 0 1 1 1v5h-7zM3 13h7v8H4a1 1 0 0 1-1-1zM14 13h7v7a1 1 0 0 1-1 1h-6z',
         onSelect: () => setExamplesOpen(true),
       },
       {
-        label: 'Glossary',
+        label: t('Glossary'),
         icon: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z',
         ...(coarse ? {} : { hint: '?' }),
         onSelect: () => openGlossary(),
@@ -1447,14 +1473,14 @@ export default function App() {
         ? []
         : [
             {
-              label: 'Keyboard shortcuts',
+              label: t('Keyboard shortcuts'),
               icon: 'M2 5.5A2.5 2.5 0 0 1 4.5 3h15A2.5 2.5 0 0 1 22 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-15A2.5 2.5 0 0 1 2 18.5zM6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M9 13h6M7 17h10',
               hint: shortcutLabel('Ctrl+/'),
               onSelect: () => setShortcutsOpen(true),
             },
           ]),
       {
-        label: 'Settings',
+        label: t('Settings'),
         icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
         onSelect: () => setSettingsOpen(true),
       },
@@ -1463,7 +1489,7 @@ export default function App() {
       ...(phone || barCompact
         ? [
             {
-              label: 'Source on GitHub',
+              label: t('Source on GitHub'),
               icon: 'M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6',
               onSelect: () => {
                 window.open(SOURCE_URL, '_blank', 'noopener,noreferrer');
@@ -1472,7 +1498,7 @@ export default function App() {
           ]
         : []),
     ],
-    [openGlossary, coarse, phone, barCompact],
+    [openGlossary, coarse, phone, barCompact, languageChoice],
   );
 
   /**
@@ -1985,7 +2011,13 @@ export default function App() {
         setPresetId(entry.presetId);
       }
       toastSeq.current += 1;
-      setToast({ text: `${verb} ${entry.label}`, id: toastSeq.current });
+      setToast({
+        text:
+          verb === 'Undid'
+            ? t('Undid {label}', { label: entry.label })
+            : t('Redid {label}', { label: entry.label }),
+        id: toastSeq.current,
+      });
     },
     [engine, switchWorkspace, installDesign],
   );
@@ -2065,7 +2097,7 @@ export default function App() {
     (edgeId: string, lossRate: number) => {
       const next = withEdgeLoss(topoLiveRef.current, edgeId, lossRate);
       if (!next) return;
-      history.commit('packet loss', snapRef.current);
+      history.commit(t('packet loss'), snapRef.current);
       topoLiveRef.current = next;
       setTopology(next);
       engine.setTopology(next);
@@ -2101,10 +2133,19 @@ export default function App() {
 
   /** One drag is ONE history entry: baseline at promotion, commit at end.
    *  The canvas names the gesture ('move', 'resize') so the undo toast can
-   *  say what it undid; unnamed callers stay a 'move'. */
+   *  say what it undid; unnamed callers stay a 'move'. The canvas's two
+   *  gesture names are translated at the boundary; anything else passes
+   *  through as it arrived. */
   const handleMoveStart = useCallback(
     (label?: string) => {
-      history.beginGesture(label ?? 'move', snapRef.current);
+      history.beginGesture(
+        label === 'resize'
+          ? t('resize')
+          : label === 'move'
+            ? t('move')
+            : (label ?? t('move')),
+        snapRef.current,
+      );
     },
     [history],
   );
@@ -2149,7 +2190,7 @@ export default function App() {
       // Same shape as handleMoveNode: inside a pointer drag the baseline
       // was captured at promotion; a move arriving outside a gesture is a
       // future streamed path and takes the debounced entry.
-      if (!history.inGesture) history.touch('move', snapRef.current);
+      if (!history.inGesture) history.touch(t('move'), snapRef.current);
       setAnnotations(
         (topoLiveRef.current.annotations ?? []).map((a) =>
           a.id === id ? { ...a, x, y } : a,
@@ -2161,7 +2202,7 @@ export default function App() {
 
   const handleResizeNote = useCallback(
     (id: string, x: number, width: number) => {
-      if (!history.inGesture) history.touch('resize', snapRef.current);
+      if (!history.inGesture) history.touch(t('resize'), snapRef.current);
       setAnnotations(
         (topoLiveRef.current.annotations ?? []).map((a) => {
           if (a.id !== id || !isNote(a)) return a;
@@ -2188,7 +2229,7 @@ export default function App() {
 
   const handleScaleNote = useCallback(
     (id: string, x: number, width: number, scale: number) => {
-      if (!history.inGesture) history.touch('resize', snapRef.current);
+      if (!history.inGesture) history.touch(t('resize'), snapRef.current);
       setAnnotations(
         (topoLiveRef.current.annotations ?? []).map((a) => {
           if (a.id !== id || !isNote(a)) return a;
@@ -2210,7 +2251,7 @@ export default function App() {
 
   const handleResizeSection = useCallback(
     (id: string, x: number, y: number, w: number, h: number) => {
-      if (!history.inGesture) history.touch('resize', snapRef.current);
+      if (!history.inGesture) history.touch(t('resize'), snapRef.current);
       setAnnotations(
         (topoLiveRef.current.annotations ?? []).map((a) =>
           a.id === id && isSection(a)
@@ -2232,7 +2273,7 @@ export default function App() {
     (x: number, y: number): string => {
       const anns = topoLiveRef.current.annotations ?? [];
       const id = freshAnnId('note');
-      history.commit('add note', snapRef.current);
+      history.commit(t('add note'), snapRef.current);
       setAnnotations([
         ...anns,
         {
@@ -2257,7 +2298,7 @@ export default function App() {
     (x: number, y: number, w: number, h: number) => {
       const anns = topoLiveRef.current.annotations ?? [];
       const id = freshAnnId('section');
-      history.commit('add section', snapRef.current);
+      history.commit(t('add section'), snapRef.current);
       setAnnotations([
         ...anns,
         {
@@ -2286,7 +2327,7 @@ export default function App() {
       if (!next.trim()) {
         // An emptied note is removed outright: invisible and unselectable,
         // it would otherwise be litter the reader cannot find to delete.
-        history.commit('delete', snapRef.current);
+        history.commit(t('delete'), snapRef.current);
         setAnnotations(anns.filter((a) => a.id !== id));
         setSelectedIds((sel) => {
           if (!sel.has(id)) return sel;
@@ -2297,7 +2338,7 @@ export default function App() {
         return;
       }
       if (next === cur.text) return;
-      history.commit('note edit', snapRef.current);
+      history.commit(t('note edit'), snapRef.current);
       setAnnotations(anns.map((a) => (a.id === id ? { ...a, text: next } : a)));
     },
     [history, setAnnotations],
@@ -2310,7 +2351,7 @@ export default function App() {
       if (!cur || cur.kind !== 'section') return;
       const next = label.slice(0, 200);
       if (next === cur.label) return;
-      history.commit('label edit', snapRef.current);
+      history.commit(t('label edit'), snapRef.current);
       setAnnotations(anns.map((a) => (a.id === id ? { ...a, label: next } : a)));
     },
     [history, setAnnotations],
@@ -2321,7 +2362,7 @@ export default function App() {
       const anns = topoLiveRef.current.annotations ?? [];
       const cur = anns.find((a) => a.id === id);
       if (!cur || cur.kind !== 'note' || cur.size === size) return;
-      history.commit('note size', snapRef.current);
+      history.commit(t('note size'), snapRef.current);
       setAnnotations(anns.map((a) => (a.id === id ? { ...a, size } : a)));
     },
     [history, setAnnotations],
@@ -2358,7 +2399,7 @@ export default function App() {
             ((Math.floor(change.tone) % SECTION_TONE_COUNT) + SECTION_TONE_COUNT) %
             SECTION_TONE_COUNT;
       }
-      history.commit('note style', snapRef.current);
+      history.commit(t('note style'), snapRef.current);
       setAnnotations(anns.map((a) => (a.id === id ? next : a)));
     },
     [history, setAnnotations],
@@ -2374,7 +2415,7 @@ export default function App() {
       const next =
         ((Math.floor(tone) % SECTION_TONE_COUNT) + SECTION_TONE_COUNT) %
         SECTION_TONE_COUNT;
-      history.commit('section shade', snapRef.current);
+      history.commit(t('section shade'), snapRef.current);
       setAnnotations(anns.map((a) => (a.id === id ? { ...a, tone: next } : a)));
     },
     [history, setAnnotations],
@@ -2415,12 +2456,20 @@ export default function App() {
       // it (see topoLiveRef, and #47 which found the stale closure first).
       // The mirror also supplies the ids already on the canvas, so a fresh
       // page load cannot mint an id a restored design is using (makeNode).
-      const t = topoLiveRef.current;
-      const node = makeNode(kind, x, y, undefined, new Set(t.nodes.map((n) => n.id)));
-      history.commit('add', snapRef.current);
+      // Named `topo` rather than `t` so the translation function stays in
+      // scope for the history label below.
+      const topo = topoLiveRef.current;
+      const node = makeNode(
+        kind,
+        x,
+        y,
+        undefined,
+        new Set(topo.nodes.map((n) => n.id)),
+      );
+      history.commit(t('add'), snapRef.current);
       applyTopology({
-        ...t,
-        nodes: [...t.nodes, node],
+        ...topo,
+        nodes: [...topo.nodes, node],
       });
       setSelectedIds(new Set([node.id]));
     },
@@ -2459,9 +2508,12 @@ export default function App() {
    */
   const nodeNames = useMemo(() => {
     const out: Record<string, string> = {};
-    for (const n of topology.nodes) out[n.id] = n.label;
+    // These names reach the reader inside sentences (route alerts, metrics
+    // rows, break verdicts), so they show the translation while the stored
+    // label stays English. languageChoice re-runs this when that changes.
+    for (const n of topology.nodes) out[n.id] = displayLabel(n.label);
     return out;
-  }, [topology.nodes]);
+  }, [topology.nodes, languageChoice]);
 
   /** Palette click (no drop point): place at the centre of the current view. */
   const handlePaletteAdd = useCallback(
@@ -2509,7 +2561,7 @@ export default function App() {
       if (fromId === toId) return;
       const id = `${fromId}->${toId}`;
       if (topology.edges.some((e) => e.id === id)) return;
-      history.commit('connection', snapRef.current);
+      history.commit(t('connection'), snapRef.current);
       applyTopology({
         ...topology,
         edges: [...topology.edges, { id, from: fromId, to: toId, weight: 1 }],
@@ -2540,7 +2592,7 @@ export default function App() {
       const dropAnns = new Set(annotationIds);
       // ONE entry for the whole selection, orphaned edges included: the
       // filter below is a single topology edit, so its baseline is too.
-      history.commit('delete', snapRef.current);
+      history.commit(t('delete'), snapRef.current);
 
       // An annotation-only delete stays a presentation edit: the engine is
       // not disturbed and the preset badge survives, matching every other
@@ -2580,10 +2632,12 @@ export default function App() {
         const entry = history.lastEntry;
         toastSeq.current += 1;
         setToast({
-          text: only ? `Deleted ${only.label}` : `Deleted ${nodeIds.length} components`,
+          text: only
+            ? t('Deleted {name}', { name: only.label })
+            : t('Deleted {n} components', { n: nodeIds.length }),
           id: toastSeq.current,
           action: {
-            label: 'Undo',
+            label: t('Undo'),
             run: () => {
               if (!history.settling && history.lastEntry === entry) handleUndo();
               else setToast(null);
@@ -2643,7 +2697,7 @@ export default function App() {
       const sub = selectionSubgraph(topology, ids);
       if (!sub) return;
       // ONE entry for the whole duplicate, selection included.
-      history.commit('duplicate', snapRef.current);
+      history.commit(t('duplicate'), snapRef.current);
       appendClones(cloneSubgraph(sub, topology, GRID * 2, GRID * 2));
     },
     [topology, history, appendClones],
@@ -2684,7 +2738,7 @@ export default function App() {
         else group.push({ id: clone.id, x: clone.x, y: clone.y });
       }
       if (!primary) return null;
-      history.beginGesture('duplicate', snapRef.current);
+      history.beginGesture(t('duplicate'), snapRef.current);
       appendClones(clones);
       return { id: primary, group };
     },
@@ -2714,7 +2768,7 @@ export default function App() {
       }
       const dx = Math.round((at.x - (minX + maxX) / 2) / GRID) * GRID;
       const dy = Math.round((at.y - (minY + maxY) / 2) / GRID) * GRID;
-      history.commit('paste', snapRef.current);
+      history.commit(t('paste'), snapRef.current);
       appendClones(cloneSubgraph(sub, topology, dx, dy));
     },
     [topology, history, appendClones],
@@ -2739,12 +2793,15 @@ export default function App() {
       void navigator.clipboard?.writeText(text).catch(() => {});
       const only =
         ids.length === 1 ? topology.nodes.find((n) => n.id === ids[0]) : null;
-      const what = only ? only.label : `${ids.length} components`;
+      const what = only ? only.label : t('{n} components', { n: ids.length });
       toastSeq.current += 1;
       setToast({
         text: coarse
-          ? `Copied ${what}. Press and hold the canvas to paste.`
-          : `Copied ${what}. ${shortcutLabel('Ctrl+V')} pastes at the pointer.`,
+          ? t('Copied {what}. Press and hold the canvas to paste.', { what })
+          : t('Copied {what}. {key} pastes at the pointer.', {
+              what,
+              key: shortcutLabel('Ctrl+V'),
+            }),
         id: toastSeq.current,
       });
     },
@@ -2773,7 +2830,7 @@ export default function App() {
       if (!sub) {
         toastSeq.current += 1;
         setToast({
-          text: 'Nothing to paste yet. Copy a component first.',
+          text: t('Nothing to paste yet. Copy a component first.'),
           id: toastSeq.current,
         });
         return;
@@ -2812,7 +2869,10 @@ export default function App() {
         addAtRef.current = at;
         if (!libraryOpen) toggleLibrary();
         toastSeq.current += 1;
-        setToast({ text: 'Pick a component and it lands here.', id: toastSeq.current });
+        setToast({
+          text: t('Pick a component and it lands here.'),
+          id: toastSeq.current,
+        });
       },
       fit: () => menuApiRef.current?.fitAll(),
     }),
@@ -2864,7 +2924,7 @@ export default function App() {
       // A slider fires this every frame, so the history side is debounced:
       // the first frame captures the pre-edit baseline, and the entry lands
       // once the value settles. One knob gesture, one undo step.
-      history.touch('setting change', snapRef.current);
+      history.touch(t('setting change'), snapRef.current);
       engine.updateNodeConfig(id, patch);
       setTopology((t) => ({
         ...t,
@@ -2894,7 +2954,7 @@ export default function App() {
         if (Object.keys(patch).length > 0) patches.set(id, patch);
       }
       if (patches.size === 0) return;
-      history.touch('setting change', snapRef.current);
+      history.touch(t('setting change'), snapRef.current);
       for (const [id, patch] of patches) engine.updateNodeConfig(id, patch);
       setTopology((t) => ({
         ...t,
@@ -2913,7 +2973,7 @@ export default function App() {
     (id: string, label: string) => {
       // Fired per keystroke; debounced the same way a slider is, so one
       // typed name settles into one entry.
-      history.touch('rename', snapRef.current);
+      history.touch(t('rename'), snapRef.current);
       setTopology((t) => ({
         ...t,
         nodes: t.nodes.map((n) => (n.id === id ? { ...n, label } : n)),
@@ -2949,7 +3009,7 @@ export default function App() {
       const spread = shares.reduce((s, v) => s + v, 0);
       shares[0] = Math.max(0, shares[0]! + (next - spread));
       // One history baseline, one engine pass, one topology write.
-      history.touch('setting change', snapRef.current);
+      history.touch(t('setting change'), snapRef.current);
       const byId = new Map(clients.map((c, i) => [c.id, shares[i]!]));
       for (const [id, rps] of byId) engine.updateNodeConfig(id, { rps });
       setTopology((t) => ({
@@ -2979,7 +3039,7 @@ export default function App() {
         ? held
         : { ...loadSession(), shared: false, stamp: stored };
     asideRef.current = back;
-    history.commit('leave challenge', snapRef.current);
+    history.commit(t('leave challenge'), snapRef.current);
     switchWorkspace(null);
     return back;
   }, [history, switchWorkspace]);
@@ -3051,13 +3111,21 @@ export default function App() {
       const saved = getDesign(id);
       if (!saved) {
         toastSeq.current += 1;
-        setToast({ text: 'That design is no longer saved.', id: toastSeq.current });
+        setToast({ text: t('That design is no longer saved.'), id: toastSeq.current });
         return;
       }
-      const left = replaceDesign(structuredClone(saved.topology), null, 'open design');
+      const left = replaceDesign(
+        structuredClone(saved.topology),
+        null,
+        t('open design'),
+      );
       toastSeq.current += 1;
       setToast({
-        text: left ? `Opened ${saved.name} ${IN_PLACE}` : `Opened ${saved.name}`,
+        text: left
+          ? t('Opened {name} in place of your design. Undo brings yours back.', {
+              name: saved.name,
+            })
+          : t('Opened {name}', { name: saved.name }),
         id: toastSeq.current,
       });
     },
@@ -3067,7 +3135,7 @@ export default function App() {
   const handleBackup = useCallback(() => {
     downloadBackup();
     toastSeq.current += 1;
-    setToast({ text: 'Downloaded everything', id: toastSeq.current });
+    setToast({ text: t('Downloaded everything'), id: toastSeq.current });
   }, []);
 
   /**
@@ -3090,7 +3158,9 @@ export default function App() {
     } catch {
       toastSeq.current += 1;
       setToast({
-        text: 'That file could not be read. Choose a backup file saved from Breakscale (.json).',
+        text: t(
+          'That file could not be read. Choose a backup file saved from Breakscale (.json).',
+        ),
         id: toastSeq.current,
       });
       return;
@@ -3098,7 +3168,9 @@ export default function App() {
 
     if (
       !window.confirm(
-        'Restoring replaces every saved design and setting in this browser with the ones in the file. Continue?',
+        t(
+          'Restoring replaces every saved design and setting in this browser with the ones in the file. Continue?',
+        ),
       )
     ) {
       return;
@@ -3113,7 +3185,7 @@ export default function App() {
     // Reloaded rather than patched into the running app: preferences, the
     // layout and the session are all read once at boot, so the only
     // honest way to apply a wholesale replacement is to start again.
-    setToast({ text: 'Restored. Reloading...', id: toastSeq.current });
+    setToast({ text: t('Restored. Reloading...'), id: toastSeq.current });
     window.setTimeout(() => window.location.reload(), 400);
   }, []);
 
@@ -3128,8 +3200,11 @@ export default function App() {
     // oldest thing on it is a shelf that loses work.
     setToast({
       text: result.evicted
-        ? `Saved ${name}. Removed the oldest, ${result.evicted}.`
-        : `Saved ${name}`,
+        ? t('Saved {name}. Removed the oldest, {evicted}.', {
+            name,
+            evicted: result.evicted,
+          })
+        : t('Saved {name}', { name }),
       id: toastSeq.current,
     });
   }, []);
@@ -3143,12 +3218,17 @@ export default function App() {
       const left = replaceDesign(
         structuredClone(preset.topology),
         preset.id,
-        'example load',
+        t('example load'),
       );
       setExampleRun((n) => n + 1);
       if (left) {
         toastSeq.current += 1;
-        setToast({ text: `Opened ${preset.name} ${IN_PLACE}`, id: toastSeq.current });
+        setToast({
+          text: t('Opened {name} in place of your design. Undo brings yours back.', {
+            name: presetCopy(preset).name,
+          }),
+          id: toastSeq.current,
+        });
       }
     },
     [replaceDesign],
@@ -3169,8 +3249,8 @@ export default function App() {
     setFitNonce((n) => n + 1);
     say(
       coarse
-        ? 'Hid components to fit the diagram. The button at the top left shows them.'
-        : 'Hid components to fit the diagram. Press C to show them.',
+        ? t('Hid components to fit the diagram. The button at the top left shows them.')
+        : t('Hid components to fit the diagram. Press C to show them.'),
     );
   }, [phone, libraryOpen, coarse, say]);
   // Once, for what boot did before there was a toast to say it with.
@@ -3196,9 +3276,10 @@ export default function App() {
       const fromOwn = challengeLiveRef.current === null;
       const attempt = attemptFor(chalStoreRef.current, brief);
       const topo = attempt ? structuredClone(attempt.topology) : freshStart(brief);
-      replaceDesign(topo, brief.presetId, 'challenge start', id);
-      if (attempt) say('Picked up where you left off.');
-      else if (fromOwn) say('Your design is set aside. It comes back when you leave.');
+      replaceDesign(topo, brief.presetId, t('challenge start'), id);
+      if (attempt) say(t('Picked up where you left off.'));
+      else if (fromOwn)
+        say(t('Your design is set aside. It comes back when you leave.'));
     },
     [replaceDesign, say],
   );
@@ -3234,7 +3315,7 @@ export default function App() {
     setRps(back.rps);
     setPresetId(back.presetId);
     installDesign(structuredClone(back.topology), true);
-    say('Back to your design.');
+    say(t('Back to your design.'));
     menuBtnRef.current?.focus();
   }, [leaveBrief, installDesign, say]);
 
@@ -3243,7 +3324,7 @@ export default function App() {
     replaceDesign(
       freshStart(challenge),
       challenge.presetId,
-      'start over',
+      t('start over'),
       challenge.id,
     );
   }, [challenge, replaceDesign]);
@@ -3297,16 +3378,19 @@ export default function App() {
       if (!('runs' in verdict)) return;
       const run = verdict.runs.find((r) => r.seed === seed) ?? verdict.deciding;
       const configs = new Map(run.replay.nodes.map((n) => [n.id, n.config]));
-      const t = topoLiveRef.current;
+      const topo = topoLiveRef.current;
       const faults = run.replay.faults ?? [];
       const watch: Topology = {
-        nodes: t.nodes.map((n) => ({ ...n, config: configs.get(n.id) ?? n.config })),
-        edges: t.edges,
-        ...(t.annotations ? { annotations: t.annotations } : {}),
+        nodes: topo.nodes.map((n) => ({
+          ...n,
+          config: configs.get(n.id) ?? n.config,
+        })),
+        edges: topo.edges,
+        ...(topo.annotations ? { annotations: topo.annotations } : {}),
         ...(faults.length > 0 ? { faults } : {}),
         seed: run.seed,
       };
-      history.commit('watch run', snapRef.current, true);
+      history.commit(t('watch run'), snapRef.current, true);
       installDesign(watch, false);
       setRunning(true);
       runningRef.current = true;
@@ -3340,12 +3424,26 @@ export default function App() {
       const from = challenge
         ? startDesign(challenge).nodes.find((n) => n.id === id)
         : undefined;
-      return (
-        from?.label ?? topoLiveRef.current.nodes.find((n) => n.id === id)?.label ?? id
+      // Design data stays English; the label a sentence shows is translated
+      // here, the same way the canvas shows it. A label the reader typed
+      // themselves has no entry and passes through.
+      return displayLabel(
+        from?.label ?? topoLiveRef.current.nodes.find((n) => n.id === id)?.label ?? id,
       );
     },
     [challenge],
   );
+
+  /**
+   * An example's name as it should show right now, or '' when the id is
+   * unknown. The preset objects stay English; what renders goes through
+   * presetCopy. (Export filenames deliberately keep the English name: the
+   * download slug strips non-ASCII, so a translated stem would empty it.)
+   */
+  const presetName = useCallback((id: string | null): string => {
+    const p = id ? PRESETS.find((x) => x.id === id) : undefined;
+    return p ? presetCopy(p).name : '';
+  }, []);
 
   const lockedFor = useCallback(
     (kind: NodeKind): readonly string[] =>
@@ -3412,7 +3510,7 @@ export default function App() {
       if (!svg) {
         toastSeq.current += 1;
         setToast({
-          text: 'There is nothing on the canvas to export yet.',
+          text: t('There is nothing on the canvas to export yet.'),
           id: toastSeq.current,
         });
         return;
@@ -3437,7 +3535,9 @@ export default function App() {
         // A failed export must say so. Silence here reads as a broken button.
         toastSeq.current += 1;
         setToast({
-          text: 'The picture could not be saved. Try again, or save the design to a file.',
+          text: t(
+            'The picture could not be saved. Try again, or save the design to a file.',
+          ),
           id: toastSeq.current,
         });
       }
@@ -3460,11 +3560,18 @@ export default function App() {
       // The imported design is no longer any example, so the preset id is
       // cleared: leaving it set would have the Examples gallery claim a
       // file the student opened is the example it was edited from.
-      const left = replaceDesign(result.topology, null, 'file import');
+      const left = replaceDesign(result.topology, null, t('file import'));
       setImportError(null);
       toastSeq.current += 1;
-      const opened = result.name ? `Opened ${result.name}` : 'Opened design';
-      setToast({ text: left ? `${opened} ${IN_PLACE}` : opened, id: toastSeq.current });
+      const opened = result.name
+        ? t('Opened {name}', { name: result.name })
+        : t('Opened design');
+      setToast({
+        text: left
+          ? t('{opened} in place of your design. Undo brings yours back.', { opened })
+          : opened,
+        id: toastSeq.current,
+      });
     },
     [replaceDesign],
   );
@@ -3546,8 +3653,10 @@ export default function App() {
         // running, and its faults land at the moments they were recorded.
         setToast({
           text: hasReplay(result.topology)
-            ? 'Opened a replay. It plays from the start, and each fault lands at the same moment it did in the original run.'
-            : 'Opened a shared design',
+            ? t(
+                'Opened a replay. It plays from the start, and each fault lands at the same moment it did in the original run.',
+              )
+            : t('Opened a shared design'),
           id: toastSeq.current,
         });
         return;
@@ -3623,7 +3732,9 @@ export default function App() {
     // From a brief, the load has said so itself. From the reader's own
     // design it says how to get that back; a fresh example needs no word.
     if (own.challengeId === null && own.presetId === null) {
-      say(`Opened ${linkedExample.name}. Undo brings your design back.`);
+      say(
+        t('Opened {name}. Undo brings your design back.', { name: linkedExample.name }),
+      );
     }
   }, [linkedExample, handleLoadPreset, say]);
 
@@ -3654,11 +3765,11 @@ export default function App() {
     } catch {
       return;
     }
-    const failed = () => say('Could not copy the link. It is in the address bar.');
+    const failed = () => say(t('Could not copy the link. It is in the address bar.'));
     try {
       void navigator.clipboard
         .writeText(link)
-        .then(() => say('Copied a link to this challenge.'), failed);
+        .then(() => say(t('Copied a link to this challenge.')), failed);
     } catch {
       failed();
     }
@@ -3704,8 +3815,15 @@ export default function App() {
             e instanceof ShareStoreError
               ? e.message
               : e instanceof ShareLinkTooLargeError
-                ? `This ${replay ? 'run' : 'design'} is too big for a link (${e.chars} characters; links stop working past ${e.limit}). Save it to a file instead.`
-                : 'Could not build the link.',
+                ? t(
+                    'This {kind} is too big for a link ({chars} characters; links stop working past {limit}). Save it to a file instead.',
+                    {
+                      kind: replay ? t('run') : t('design'),
+                      chars: e.chars,
+                      limit: e.limit,
+                    },
+                  )
+                : t('Could not build the link.'),
         };
       }
     },
@@ -3780,13 +3898,13 @@ export default function App() {
   const breakBlocked = useMemo(() => {
     const clients = topology.nodes.filter((n) => n.kind === 'client');
     if (clients.length === 0)
-      return 'Add a client first, so there is traffic to break.';
+      return t('Add a client first, so there is traffic to break.');
     const ids = new Set(clients.map((c) => c.id));
     if (!topology.edges.some((e) => ids.has(e.from))) {
-      return 'Add something behind the client to break.';
+      return t('Add something behind the client to break.');
     }
     return null;
-  }, [topology.nodes, topology.edges]);
+  }, [topology.nodes, topology.edges, languageChoice]);
 
   const breakBlockedRef = useRef(breakBlocked);
   useLayoutEffect(() => {
@@ -3797,7 +3915,10 @@ export default function App() {
      so a part deleted since keeps its name in that verdict. */
   const ranDesign = breakView.status === 'done' ? breakView.design : null;
   const breakNames = useMemo<Names>(() => {
-    const ran = (id: string) => ranDesign?.nodes.find((n) => n.id === id)?.label;
+    const ran = (id: string) => {
+      const n = ranDesign?.nodes.find((k) => k.id === id);
+      return n ? displayLabel(n.label) : undefined;
+    };
     const label = (id: string) => nodeNames[id] ?? ran(id) ?? id;
     return {
       node: label,
@@ -3805,7 +3926,12 @@ export default function App() {
         const e =
           topology.edges.find((x) => x.id === id) ??
           ranDesign?.edges.find((x) => x.id === id);
-        return e ? `the connection from ${label(e.from)} to ${label(e.to)}` : id;
+        return e
+          ? t('the connection from {from} to {to}', {
+              from: label(e.from),
+              to: label(e.to),
+            })
+          : id;
       },
     };
   }, [nodeNames, topology.edges, ranDesign]);
@@ -3884,27 +4010,29 @@ export default function App() {
           node: v.nodeId,
           atMs: v.chargedMs[1],
           count,
-          text: `Charged twice: request ${v.rid}`,
-          past: `request ${v.rid} was charged a second time`,
+          text: t('Charged twice: request {rid}', { rid: v.rid }),
+          past: t('request {rid} was charged a second time', { rid: v.rid }),
         };
       case 'lostAckedWrite':
         return {
           node: v.nodeId,
           atMs: v.lostMs,
           count,
-          text: `Lost after saved: request ${v.rid}`,
-          past: `request ${v.rid} was lost after it was saved`,
+          text: t('Lost after saved: request {rid}', { rid: v.rid }),
+          past: t('request {rid} was lost after it was saved', { rid: v.rid }),
         };
       case 'readYourWrites':
         return {
           node: v.nodeId,
           atMs: v.readMs,
           count,
-          text: `Stale read: request ${v.rid}`,
-          past: `request ${v.rid} read the value from before its own write`,
+          text: t('Stale read: request {rid}', { rid: v.rid }),
+          past: t('request {rid} read the value from before its own write', {
+            rid: v.rid,
+          }),
         };
     }
-  }, [breakWatch, breakView]);
+  }, [breakWatch, breakView, languageChoice]);
   const violationShown =
     violationAt !== null && snapshot !== null && engine.now >= violationAt.atMs;
   const violationMarks = useMemo(
@@ -3927,7 +4055,7 @@ export default function App() {
         ? breakBeforeRef.current.before
         : topoLiveRef.current;
     breakBeforeRef.current = { before, installed: r.replay };
-    history.commit('watch break', snapRef.current, true);
+    history.commit(t('watch break'), snapRef.current, true);
     installDesign(r.replay, false);
     setRunning(true);
     runningRef.current = true;
@@ -3975,11 +4103,11 @@ export default function App() {
         ...(w.before.seed !== undefined ? { seed: w.before.seed } : {}),
       };
     }
-    history.commit('replay', snapRef.current, true);
+    history.commit(t('replay'), snapRef.current, true);
     installDesign(back, false);
     toastSeq.current += 1;
     setToast({
-      text: 'Back to your design, without the faults.',
+      text: t('Back to your design, without the faults.'),
       id: toastSeq.current,
     });
   }, [history, installDesign]);
@@ -4046,11 +4174,19 @@ export default function App() {
     if (violationAt !== null) {
       const where = breakNames.node(violationAt.node);
       return now < violationAt.atMs
-        ? `Watch ${where} at ${clock(violationAt.atMs)}.`
-        : `At ${clock(violationAt.atMs)}, ${violationAt.past}, at ${where}. The search counted ${violationAt.count} in the window.`;
+        ? t('Watch {where} at {at}.', {
+            where,
+            at: clock(violationAt.atMs),
+          })
+        : t('At {at}, {past}, at {where}. The search counted {count} in the window.', {
+            at: clock(violationAt.atMs),
+            past: violationAt.past,
+            where,
+            count: violationAt.count,
+          });
     }
     const tally = now < BREAK_WARMUP_MS ? null : engine.readTally();
-    if (!tally) return `Measuring starts at ${secs(BREAK_WARMUP_MS)}.`;
+    if (!tally) return t('Measuring starts at {at}.', { at: secs(BREAK_WARMUP_MS) });
     const run = measureSeed(goal, tally, 0);
     // The verdict's own order: nothing through, then a backlog, then the
     // goal. Partway through, requests still on their way look like a
@@ -4058,20 +4194,29 @@ export default function App() {
     const ended = now >= BREAK_END_MS;
     const figure =
       run.outcome === 'nothing-completed'
-        ? 'nothing got through'
+        ? t('nothing got through')
         : ended && run.outcome === 'falling-behind'
-          ? `requests piled up faster than they finished (${formatShareDown(run.keptUp)} got an answer), which counts as broken`
+          ? t(
+              'requests piled up faster than they finished ({kept} got an answer), which counts as broken',
+              { kept: formatShareDown(run.keptUp) },
+            )
           : goal.metric === 'errorRate'
             ? run.actual === null
-              ? 'nothing has settled'
-              : `${formatGoalPct(run.actual)} failed`
+              ? t('nothing has settled')
+              : t('{pct} failed', { pct: formatGoalPct(run.actual) })
             : goal.metric === 'p99' || goal.metric === 'p95'
-              ? `the slowest took ${run.actual === null ? 'nothing yet' : formatGoalMs(run.actual)}`
-              : `${run.actual ?? 0} lost`;
+              ? t('the slowest took {ms}', {
+                  ms: run.actual === null ? t('nothing yet') : formatGoalMs(run.actual),
+                })
+              : t('{n} lost', { n: run.actual ?? 0 });
     return now >= BREAK_END_MS
-      ? `Between ${secs(BREAK_WARMUP_MS)} and ${secs(BREAK_END_MS)}, ${figure}.`
-      : `In the window so far, ${figure}.`;
-  }, [breakWatchSec, breakWatch, engine, violationAt, breakNames]);
+      ? t('Between {from} and {to}, {figure}.', {
+          from: secs(BREAK_WARMUP_MS),
+          to: secs(BREAK_END_MS),
+          figure,
+        })
+      : t('In the window so far, {figure}.', { figure });
+  }, [breakWatchSec, breakWatch, engine, violationAt, breakNames, languageChoice]);
   /* The countdown reads the replay's own clock on every render rather than
      riding in the memo above, so it can never be left showing a second that
      has already gone. */
@@ -4151,7 +4296,7 @@ export default function App() {
       if (!picked) return;
       if (breakShown) handleCloseBreak();
       const scene = structuredClone(picked.scene);
-      replaceDesign(scene, null, 'incident');
+      replaceDesign(scene, null, t('incident'));
       incidentOpenDepthRef.current = history.undoDepth;
       if (!incidentUnplayedRef.current)
         runningBeforeIncidentRef.current = runningRef.current;
@@ -4161,7 +4306,11 @@ export default function App() {
       setIncidentId(id);
       setIncidentScene(scene);
       setIncidentFocus((n) => n + 1);
-      say(`Opened ${picked.name}. Undo brings your design back.`);
+      say(
+        t('Opened {name}. Undo brings your design back.', {
+          name: incidentCopy(picked).name,
+        }),
+      );
     },
     [breakShown, handleCloseBreak, replaceDesign, history, say],
   );
@@ -4181,7 +4330,7 @@ export default function App() {
       setIncidentScene(structuredClone(incident.scene));
     } else {
       const scene = structuredClone(incident.scene);
-      replaceDesign(scene, null, 'incident replay');
+      replaceDesign(scene, null, t('incident replay'));
       setIncidentScene(scene);
     }
     setRunning(true);
@@ -4340,9 +4489,12 @@ export default function App() {
   );
   const incidentCaption = useMemo(() => {
     if (!incident || incidentSec < 0) return null;
-    const c = captionAt(incident, incidentSec * 1000);
-    return c ? `${secs(c.atMs)}: ${c.text}` : null;
-  }, [incident, incidentSec]);
+    // Captions are data text, so they are translated at the render site and
+    // timed by the original schedule (see i18n/content/incidents.ts).
+    const copy = incidentCopy(incident);
+    const c = captionAt({ ...incident, captions: copy.captions }, incidentSec * 1000);
+    return c ? t('{at}: {text}', { at: secs(c.atMs), text: c.text }) : null;
+  }, [incident, incidentSec, languageChoice]);
 
   const toggleBreakRef = useRef(handleToggleBreak);
   useLayoutEffect(() => {
@@ -4382,48 +4534,48 @@ export default function App() {
   const runMenuItems = useMemo<MenuItem[]>(
     () => [
       {
-        label: running ? 'Pause' : 'Play',
+        label: running ? t('Pause') : t('Play'),
         icon: running ? 'M6 4h4v16H6zM14 4h4v16h-4z' : 'M6 3l14 9-14 9z',
-        ...(coarse ? {} : { hint: 'Space' }),
+        ...(coarse ? {} : { hint: t('Space') }),
         onSelect: handleToggleRun,
       },
       {
-        label: 'Step',
+        label: t('Step'),
         icon: 'M6 4v16M10 4l10 8-10 8z',
         ...(coarse ? {} : { hint: 'S' }),
         onSelect: handleStep,
       },
       {
-        label: 'Reset',
+        label: t('Reset'),
         icon: 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5',
         onSelect: handleReset,
         divider: true,
       },
     ],
-    [running, coarse, handleToggleRun, handleStep, handleReset],
+    [running, coarse, handleToggleRun, handleStep, handleReset, languageChoice],
   );
   /* The palette heads the menu, so it can be found without its chord.
      Presenting follows the run controls: it is how they get shown to a
      room. */
   const searchMenuItem = useMemo<MenuItem>(
     () => ({
-      label: 'Search actions',
+      label: t('Search actions'),
       icon: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.35-4.35',
       ...(coarse ? {} : { hint: shortcutLabel('Ctrl+K') }),
       onSelect: () => openPaletteRef.current(),
       divider: true,
     }),
-    [coarse],
+    [coarse, languageChoice],
   );
   const presentMenuItem = useMemo<MenuItem>(
     () => ({
-      label: presenting ? 'Stop presenting' : 'Start presenting',
+      label: presenting ? t('Stop presenting') : t('Start presenting'),
       icon: 'M3 4h18v12H3zM12 16v4M8 20h8',
       ...(coarse ? {} : { hint: 'Shift+P' }),
       onSelect: togglePresenting,
       divider: true,
     }),
-    [coarse, presenting, togglePresenting],
+    [coarse, presenting, togglePresenting, languageChoice],
   );
   const allMenuItems = useMemo(
     () => [searchMenuItem, ...runMenuItems, presentMenuItem, ...menuItems],
@@ -4600,7 +4752,7 @@ export default function App() {
           e.preventDefault();
           toastSeq.current += 1;
           setToast({
-            text: 'Can you break it? is off during a challenge.',
+            text: t('Can you break it? is off during a challenge.'),
             id: toastSeq.current,
           });
           return;
@@ -4826,22 +4978,24 @@ export default function App() {
     presentFaultRef.current = (kind) => {
       const p = presentPart;
       if (!p) {
-        say('Pick a part first. Click one or Tab to it.');
+        say(t('Pick a part first. Click one or Tab to it.'));
         return;
       }
       const f = p.fault;
       if (kind === 'crash') {
-        if (f?.kind === 'crash') say(`${p.label} is already crashed. R fixes it.`);
+        if (f?.kind === 'crash')
+          say(t('{name} is already crashed. R fixes it.', { name: p.label }));
         else presentCrash(p.id);
       } else if (kind === 'slow') {
-        if (!p.canSlow) say(`${p.label} does no work of its own to slow down.`);
-        else if (f !== null) say(`Fix ${p.label} first. R fixes it.`);
+        if (!p.canSlow)
+          say(t('{name} does no work of its own to slow down.', { name: p.label }));
+        else if (f !== null) say(t('Fix {name} first. R fixes it.', { name: p.label }));
         else presentSlow(p.id);
       } else if (f === null) {
-        say(`${p.label} has nothing to fix.`);
+        say(t('{name} has nothing to fix.', { name: p.label }));
       } else presentFix(p.id);
     };
-  }, [presentPart, presentCrash, presentSlow, presentFix, say]);
+  }, [presentPart, presentCrash, presentSlow, presentFix, say, languageChoice]);
 
   /* Ctrl+K, or Cmd+K on a Mac. Before any typing guard on purpose: the
      palette is how you get out of a field and do something else. By e.code
@@ -4905,10 +5059,20 @@ export default function App() {
         kinds: KIND_GROUPS.flatMap((g) =>
           g.kinds.map((kind) => ({ kind, name: KIND_NAME[kind], group: g.title })),
         ),
-        examples: PRESETS.map((p) => ({ id: p.id, name: p.name, tagline: p.tagline })),
-        challenges: CHALLENGES.map((c) => ({ id: c.id, name: c.name })),
-        incidents: INCIDENTS.map((i) => ({ id: i.id, name: i.name })),
-        glossary: GLOSSARY,
+        examples: PRESETS.map((p) => {
+          const copy = presetCopy(p);
+          return { id: p.id, name: copy.name, tagline: copy.tagline };
+        }),
+        challenges: CHALLENGES.map((c) => ({ id: c.id, name: challengeCopy(c).name })),
+        incidents: INCIDENTS.map((i) => ({ id: i.id, name: incidentCopy(i).name })),
+        // Terms keep their English label (the field's shared vocabulary);
+        // the keywords carry both language's aliases, so 熔断 finds the
+        // circuit breaker in the palette just like "breaker" does.
+        glossary: GLOSSARY.map((g) => ({
+          id: g.id,
+          term: g.term,
+          aliases: glossaryCopy(g).aliases,
+        })),
         mac: isMac(),
         coarse,
       };
@@ -5003,7 +5167,7 @@ export default function App() {
           focusDiagram();
         }}
       >
-        Skip to diagram
+        {t('Skip to diagram')}
       </a>
       <header
         className="app-bar"
@@ -5016,7 +5180,7 @@ export default function App() {
             opening this should be able to say what it is out loud. */}
           <div className="app-brand">
             <h1 className="app-title">Breakscale</h1>
-            <p className="app-tagline">Build it, load it, watch it break</p>
+            <p className="app-tagline">{t('Build it, load it, watch it break')}</p>
           </div>
 
           {/*
@@ -5031,12 +5195,12 @@ export default function App() {
             className={`app-saved is-${saveState}`}
             title={
               saveState === 'saved'
-                ? 'Your work is saved in this browser'
-                : 'Saving your work'
+                ? t('Your work is saved in this browser')
+                : t('Saving your work')
             }
           >
             <span className="app-saved-dot" aria-hidden="true" />
-            {saveState === 'saved' ? 'Saved' : 'Saving'}
+            {saveState === 'saved' ? t('Saved') : t('Saving')}
           </p>
 
           {/*
@@ -5054,8 +5218,8 @@ export default function App() {
               type="button"
               className="btn btn-icon"
               disabled={!canUndo}
-              aria-label="Undo"
-              title={`Undo (${shortcutLabel('Ctrl+Z')})`}
+              aria-label={t('Undo')}
+              title={t('Undo ({key})', { key: shortcutLabel('Ctrl+Z') })}
               onClick={handleUndo}
             >
               <svg
@@ -5077,8 +5241,8 @@ export default function App() {
               type="button"
               className="btn btn-icon"
               disabled={!canRedo}
-              aria-label="Redo"
-              title={`Redo (${shortcutLabel('Ctrl+Shift+Z')})`}
+              aria-label={t('Redo')}
+              title={t('Redo ({key})', { key: shortcutLabel('Ctrl+Shift+Z') })}
               onClick={handleRedo}
             >
               <svg
@@ -5146,10 +5310,12 @@ export default function App() {
             rel="noreferrer noopener"
             aria-label={
               starCount !== null
-                ? `Source on GitHub, ${formatStars(starCount)} stars`
-                : 'Source on GitHub'
+                ? t('Source on GitHub, {stars} stars', {
+                    stars: formatStars(starCount),
+                  })
+                : t('Source on GitHub')
             }
-            title="Source on GitHub"
+            title={t('Source on GitHub')}
             data-chrome=""
           >
             <svg
@@ -5205,8 +5371,10 @@ export default function App() {
               onClick={handleToggleBreak}
               disabled={breakBlocked !== null}
               aria-expanded={breakShown}
-              aria-label="Can you break it?"
-              title={breakBlocked ?? 'Throw faults at this design until it fails (F)'}
+              aria-label={t('Can you break it?')}
+              title={
+                breakBlocked ?? t('Throw faults at this design until it fails (F)')
+              }
             >
               <svg
                 width="15"
@@ -5222,10 +5390,10 @@ export default function App() {
                 <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
               </svg>
               <span className="app-break-long" aria-hidden="true">
-                Can you break it?
+                {t('Can you break it?')}
               </span>
               <span className="app-break-short" aria-hidden="true">
-                Break it
+                {t('Break it')}
               </span>
             </button>
           )}
@@ -5234,8 +5402,8 @@ export default function App() {
             type="button"
             className="btn app-share-btn"
             onClick={handleOpenShare}
-            title="Get a link to this design"
-            aria-label="Share"
+            title={t('Get a link to this design')}
+            aria-label={t('Share')}
           >
             <svg
               width="15"
@@ -5252,7 +5420,7 @@ export default function App() {
             </svg>
             {/* Hidden on a phone, where the header is one row and the link
                 glyph has to carry it; aria-label keeps the name. */}
-            <span className="app-share-label">Share</span>
+            <span className="app-share-label">{t('Share')}</span>
           </button>
 
           <div className="app-menu-wrap">
@@ -5262,8 +5430,8 @@ export default function App() {
               className="btn btn-icon app-menu-btn"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
-              aria-label="Menu"
-              title="Examples, settings and help"
+              aria-label={t('Menu')}
+              title={t('Examples, settings and help')}
               onClick={() => setMenuOpen((o) => !o)}
             >
               <svg
@@ -5454,9 +5622,7 @@ export default function App() {
             {taskShown ? (
               <TaskCard
                 view={taskView}
-                exampleName={
-                  PRESETS.find((p) => p.id === taskView.task.presetId)?.name ?? ''
-                }
+                exampleName={presetName(taskView.task.presetId)}
                 topology={topology}
                 snapshot={snapshot}
                 selectedId={tourSubject}
@@ -5481,7 +5647,7 @@ export default function App() {
             ) : null}
             {challenge && challengePassed && phone && inspectorVisible ? (
               <PassStrip
-                name={challenge.name}
+                name={challengeCopy(challenge).name}
                 onShow={() => setSelectedIds(new Set<string>())}
               />
             ) : null}
@@ -5502,9 +5668,9 @@ export default function App() {
                 }
                 nextLabel={
                   briefAfter
-                    ? `Next: ${stepName(briefAfter)}`
+                    ? t('Next: {name}', { name: stepName(briefAfter) })
                     : next
-                      ? `Next challenge: ${next.name}`
+                      ? t('Next challenge: {name}', { name: challengeCopy(next).name })
                       : undefined
                 }
                 onLeave={handleLeaveChallenge}
@@ -5550,8 +5716,8 @@ export default function App() {
               className="btn btn-sm btn-icon stage-toggle stage-toggle-library"
               data-chrome="layout"
               aria-expanded={libraryOpen}
-              aria-label={libraryOpen ? 'Hide components' : 'Show components'}
-              title={libraryOpen ? 'Hide components (C)' : 'Show components (C)'}
+              aria-label={libraryOpen ? t('Hide components') : t('Show components')}
+              title={libraryOpen ? t('Hide components (C)') : t('Show components (C)')}
               onClick={toggleLibrary}
             >
               <PanelGlyph edge="left" />
@@ -5569,8 +5735,12 @@ export default function App() {
                 className="btn btn-sm btn-icon stage-toggle stage-toggle-inspector"
                 data-chrome="layout"
                 aria-expanded={inspectorVisible}
-                aria-label={inspectorVisible ? 'Hide inspector' : 'Show inspector'}
-                title={inspectorVisible ? 'Hide inspector (I)' : 'Show inspector (I)'}
+                aria-label={
+                  inspectorVisible ? t('Hide inspector') : t('Show inspector')
+                }
+                title={
+                  inspectorVisible ? t('Hide inspector (I)') : t('Show inspector (I)')
+                }
                 onClick={toggleInspector}
               >
                 <PanelGlyph edge="right" />
@@ -5581,8 +5751,8 @@ export default function App() {
               className="btn btn-sm btn-icon stage-toggle stage-toggle-metrics"
               data-chrome="layout"
               aria-expanded={layout.metrics}
-              aria-label={layout.metrics ? 'Hide charts' : 'Show charts'}
-              title={layout.metrics ? 'Hide charts (M)' : 'Show charts (M)'}
+              aria-label={layout.metrics ? t('Hide charts') : t('Show charts')}
+              title={layout.metrics ? t('Hide charts (M)') : t('Show charts (M)')}
               onClick={toggleMetrics}
             >
               <PanelGlyph edge="bottom" />
@@ -5622,7 +5792,7 @@ export default function App() {
               onReset={() =>
                 setLayout((l) => ({ ...l, stripH: PANEL_LIMITS.stripH.base }))
               }
-              label="Resize the charts strip"
+              label={t('Resize the charts strip')}
             />
           </PanelSlot>
         </main>
@@ -5651,7 +5821,7 @@ export default function App() {
             max={PANEL_LIMITS.railW.max}
             onCommit={(railW) => setLayout((l) => ({ ...l, railW }))}
             onReset={() => setLayout((l) => ({ ...l, railW: PANEL_LIMITS.railW.base }))}
-            label="Resize the components rail"
+            label={t('Resize the components rail')}
           />
         </PanelSlot>
 
@@ -5686,7 +5856,7 @@ export default function App() {
             max={PANEL_LIMITS.insW.max}
             onCommit={(insW) => setLayout((l) => ({ ...l, insW }))}
             onReset={() => setLayout((l) => ({ ...l, insW: PANEL_LIMITS.insW.base }))}
-            label="Resize the inspector"
+            label={t('Resize the inspector')}
           />
         </PanelSlot>
 
@@ -5772,7 +5942,7 @@ export default function App() {
         for: select something and it lights up. aria-disabled rather than
         disabled, so a tap on it can still say how to light it up.
       */}
-      <nav className="app-tabbar" aria-label="Panels">
+      <nav className="app-tabbar" aria-label={t('Panels')}>
         <button
           type="button"
           className="app-tab"
@@ -5780,7 +5950,7 @@ export default function App() {
           onClick={toggleLibrary}
         >
           <PanelGlyph edge="left" />
-          Build
+          {t('Build')}
         </button>
         <button
           type="button"
@@ -5790,11 +5960,12 @@ export default function App() {
           onClick={
             hasSelection
               ? toggleInspector
-              : () => say('Tap a part on the canvas to see its settings and break it.')
+              : () =>
+                  say(t('Tap a part on the canvas to see its settings and break it.'))
           }
         >
           <PanelGlyph edge="right" />
-          Inspect
+          {t('Inspect')}
         </button>
         <button
           type="button"
@@ -5803,7 +5974,7 @@ export default function App() {
           onClick={toggleMetrics}
         >
           <PanelGlyph edge="bottom" />
-          Charts
+          {t('Charts')}
         </button>
       </nav>
 
@@ -5856,9 +6027,7 @@ export default function App() {
         onClose={() => setDesignsOpen(false)}
         onOpen={handleOpenSaved}
         onSave={handleSaveNamed}
-        suggestedName={
-          presetId ? (PRESETS.find((p) => p.id === presetId)?.name ?? '') : ''
-        }
+        suggestedName={presetName(presetId)}
         canSave={topology.nodes.length > 0}
         onOpenFile={() => fileInputRef.current?.click()}
       />

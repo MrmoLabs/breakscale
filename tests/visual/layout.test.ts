@@ -12,8 +12,9 @@ import { expect, test, type Page } from '@playwright/test';
  *   the one that catches the label plates of two sections colliding (the
  *   lane-gap geometry the preset tests assert numerically).
  *
- * Determinism contract. Every test boots `?preset=<id>&theme=<t>&paused=1
- * &warmup=3000`: the preset loads, the engine advances exactly 3.0
+ * Determinism contract. Every test boots `?preset=<id>&theme=<t>&language=en
+ * &paused=1&warmup=3000`: the preset loads, the interface is pinned to
+ * English whatever the runner machine's locale is, the engine advances exactly 3.0
  * simulated seconds from its own seed in fixed steps, and then stays
  * paused. Two runs of the same test on the same platform render the same
  * frame, which is what makes a pixel diff mean "the layout moved" instead
@@ -59,7 +60,7 @@ async function bootExample(
     localStorage.setItem('breakscale.task.v1', JSON.stringify({ hidden: ids }));
   }, Object.keys(EXAMPLES));
 
-  await page.goto(`/?preset=${id}&theme=${theme}&paused=1&warmup=3000`, {
+  await page.goto(`/?preset=${id}&theme=${theme}&language=en&paused=1&warmup=3000`, {
     waitUntil: 'domcontentloaded',
   });
 

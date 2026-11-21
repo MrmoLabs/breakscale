@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { t } from '../i18n';
+import { incidentCopy } from '../i18n/content/incidents';
+import { presetCopy } from '../i18n/content/presets';
 import type { Incident } from '../sim/incidents';
 import type { Preset } from '../sim/presets';
 import { usePresence } from './presence';
@@ -99,24 +102,38 @@ export function Examples({
 
   const q = query.trim().toLowerCase();
   const shown = q
-    ? presets.filter(
-        (p) =>
+    ? presets.filter((p) => {
+        // Either language finds the preset: the stored English text and the
+        // copy this gallery shows (presetCopy) both count as matches.
+        const c = presetCopy(p);
+        return (
           p.name.toLowerCase().includes(q) ||
           p.tagline.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q),
-      )
+          p.description.toLowerCase().includes(q) ||
+          c.name.toLowerCase().includes(q) ||
+          c.tagline.toLowerCase().includes(q) ||
+          c.description.toLowerCase().includes(q)
+        );
+      })
     : presets;
   const shownIncidents = onOpenIncident
     ? q
-      ? incidents.filter(
-          (i) =>
-            // The section's own words count, so "incident" or "outage" finds
-            // all of them, as do a year or a company from the source.
+      ? incidents.filter((i) => {
+          // The section's own words count, so "incident" or "outage" finds
+          // all of them, as do a year or a company from the source. The
+          // translated text matches too, so a Chinese query finds them the
+          // same way its English twin would.
+          const copy = incidentCopy(i);
+          return (
             'real incidents outage'.includes(q) ||
-            [i.name, i.tagline, i.date, i.source.title, ...i.story].some((t) =>
-              t.toLowerCase().includes(q),
-            ),
-        )
+            [i.name, i.tagline, i.date, i.source.title, ...i.story].some((s) =>
+              s.toLowerCase().includes(q),
+            ) ||
+            [copy.name, copy.tagline, copy.sourceTitle, ...copy.story].some((s) =>
+              s.toLowerCase().includes(q),
+            )
+          );
+        })
       : incidents
     : [];
 
@@ -149,10 +166,10 @@ export function Examples({
         <div className="ex-head">
           <div>
             <h2 id="ex-title" className="ex-title">
-              Examples
+              {t('Examples')}
             </h2>
             <p className="ex-sub">
-              Load a system that already works, then take it apart.
+              {t('Load a system that already works, then take it apart.')}
             </p>
           </div>
           <div className="ex-head-actions">
@@ -165,7 +182,7 @@ export function Examples({
                   setJump((n) => n + 1);
                 }}
               >
-                Incidents
+                {t('Incidents')}
               </button>
             ) : null}
             {onOpenPath ? (
@@ -177,7 +194,7 @@ export function Examples({
                   onOpenPath();
                 }}
               >
-                Learning path
+                {t('Learning path')}
               </button>
             ) : null}
             <CloseButton onClick={onClose} />
@@ -188,15 +205,17 @@ export function Examples({
           ref={searchRef}
           type="text"
           className="ex-search"
-          placeholder="Search examples"
+          placeholder={t('Search examples')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          aria-label="Search examples"
+          aria-label={t('Search examples')}
         />
 
         {shown.length === 0 && shownIncidents.length === 0 ? (
           <p className="ex-empty">
-            Nothing matches “{query}”. Try a component name like cache or queue.
+            {t('Nothing matches “{query}”. Try a component name like cache or queue.', {
+              query,
+            })}
           </p>
         ) : (
           <div className="ex-scroll">
@@ -204,6 +223,9 @@ export function Examples({
               <ul className="ex-grid">
                 {shown.map((preset) => {
                   const active = preset.id === activePresetId;
+                  // Name, tagline and description are design data; the card
+                  // shows the copy for the locale now in effect.
+                  const copy = presetCopy(preset);
                   return (
                     <li key={preset.id}>
                       <button
@@ -216,13 +238,15 @@ export function Examples({
                           onClose();
                         }}
                       >
-                        <span className="ex-item-name">{preset.name}</span>
-                        <span className="ex-item-tagline">{preset.tagline}</span>
+                        <span className="ex-item-name">{copy.name}</span>
+                        <span className="ex-item-tagline">{copy.tagline}</span>
                         {/* The full description is what actually helps a
                             student choose, and it is the thing a rail row
                             had no room for. */}
-                        <span className="ex-item-desc">{preset.description}</span>
-                        {active ? <span className="ex-item-active">Loaded</span> : null}
+                        <span className="ex-item-desc">{copy.description}</span>
+                        {active ? (
+                          <span className="ex-item-active">{t('Loaded')}</span>
+                        ) : null}
                       </button>
                     </li>
                   );
@@ -232,28 +256,33 @@ export function Examples({
             {shownIncidents.length > 0 ? (
               <section ref={incRef} className="inc-section" aria-labelledby="inc-title">
                 <h3 id="inc-title" className="inc-section-title">
-                  Real incidents
+                  {t('Real incidents')}
                 </h3>
                 <p className="inc-section-sub">
-                  Real outages as simplified models. Watch one happen, then fix it.
+                  {t(
+                    'Real outages as simplified models. Watch one happen, then fix it.',
+                  )}
                 </p>
                 <ul className="ex-grid">
-                  {shownIncidents.map((incident) => (
-                    <li key={incident.id}>
-                      <button
-                        type="button"
-                        className="ex-item"
-                        onClick={() => {
-                          onOpenIncident?.(incident.id);
-                          onClose();
-                        }}
-                      >
-                        <span className="ex-item-name">{incident.name}</span>
-                        <span className="inc-date">{incident.date}</span>
-                        <span className="ex-item-desc">{incident.tagline}</span>
-                      </button>
-                    </li>
-                  ))}
+                  {shownIncidents.map((incident) => {
+                    const copy = incidentCopy(incident);
+                    return (
+                      <li key={incident.id}>
+                        <button
+                          type="button"
+                          className="ex-item"
+                          onClick={() => {
+                            onOpenIncident?.(incident.id);
+                            onClose();
+                          }}
+                        >
+                          <span className="ex-item-name">{copy.name}</span>
+                          <span className="inc-date">{incident.date}</span>
+                          <span className="ex-item-desc">{copy.tagline}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               </section>
             ) : null}

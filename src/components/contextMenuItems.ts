@@ -1,5 +1,7 @@
 import type { ActiveFailure, Topology } from '../sim/types';
 import { shortcutLabel } from '../modKey';
+import { t } from '../i18n';
+import { displayLabel } from '../i18n/display';
 import { DEFAULT_LOSS_RATE, DEFAULT_SLOW_FACTOR, formatFactor } from './faultWiring';
 import type { CableState } from './faultWiring';
 import { formatPct } from './format';
@@ -99,13 +101,18 @@ export function menuTitle(target: MenuTarget, facts: MenuFacts): string | null {
   const byId = new Map(facts.topology.nodes.map((n) => [n.id, n] as const));
   if (target.kind === 'node') {
     const scope = menuScope(target, facts.selectedIds, facts.topology);
-    if (scope.length > 1) return `${scope.length} components`;
-    return byId.get(target.id)?.label ?? null;
+    if (scope.length > 1) return t('{n} components', { n: scope.length });
+    // The menu title names a part whose stored label stays English.
+    const n = byId.get(target.id);
+    return n ? displayLabel(n.label) : null;
   }
   if (target.kind === 'edge') {
     const e = facts.topology.edges.find((x) => x.id === target.id);
     if (!e) return null;
-    return `${byId.get(e.from)?.label ?? e.from} to ${byId.get(e.to)?.label ?? e.to}`;
+    return t('{from} to {to}', {
+      from: byId.get(e.from)?.label ? displayLabel(byId.get(e.from)!.label) : e.from,
+      to: byId.get(e.to)?.label ? displayLabel(byId.get(e.to)!.label) : e.to,
+    });
   }
   return null;
 }
@@ -120,37 +127,39 @@ export function menuItems(target: MenuTarget, facts: MenuFacts): ContextMenuItem
     if (!facts.topology.nodes.some((n) => n.id === target.id)) return [];
     const n = menuScope(target, facts.selectedIds, facts.topology).length;
     const many = n > 1;
-    push({ action: 'inspect', label: 'Inspect', group: 0 });
+    push({ action: 'inspect', label: t('Inspect'), group: 0 });
     push({
       action: 'duplicate',
-      label: many ? `Duplicate all ${n}` : 'Duplicate',
+      label: many ? t('Duplicate all {n}', { n }) : t('Duplicate'),
       hint: key('Ctrl+D'),
       group: 0,
     });
     push({
       action: 'copy',
-      label: many ? `Copy all ${n}` : 'Copy',
+      label: many ? t('Copy all {n}', { n }) : t('Copy'),
       hint: key('Ctrl+C'),
       group: 0,
     });
     if (!many) {
-      push({ action: 'connect', label: 'Connect to…', hint: key('L'), group: 0 });
+      push({ action: 'connect', label: t('Connect to…'), hint: key('L'), group: 0 });
       // The fault controls work on one part at a time, here as in the
       // inspector.
       const f = facts.fault;
-      if (f?.kind !== 'crash') push({ action: 'crash', label: 'Crash', group: 1 });
+      if (f?.kind !== 'crash') push({ action: 'crash', label: t('Crash'), group: 1 });
       if (f === null && facts.canSlow) {
         push({
           action: 'slow',
-          label: `Slow down ${formatFactor(DEFAULT_SLOW_FACTOR)}`,
+          label: t('Slow down {factor}', {
+            factor: formatFactor(DEFAULT_SLOW_FACTOR),
+          }),
           group: 1,
         });
       }
-      if (f !== null) push({ action: 'fix', label: 'Fix', group: 1 });
+      if (f !== null) push({ action: 'fix', label: t('Fix'), group: 1 });
     }
     push({
       action: 'delete',
-      label: many ? `Delete all ${n}` : 'Delete',
+      label: many ? t('Delete all {n}', { n }) : t('Delete'),
       danger: true,
       group: 2,
     });
@@ -159,37 +168,39 @@ export function menuItems(target: MenuTarget, facts: MenuFacts): ContextMenuItem
 
   if (target.kind === 'edge') {
     if (!facts.topology.edges.some((e) => e.id === target.id)) return [];
-    push({ action: 'inspect', label: 'Inspect', group: 0 });
+    push({ action: 'inspect', label: t('Inspect'), group: 0 });
     // A cable cut by its node's own fault is healed by fixing that node, so
     // neither Cut nor Restore is offered for it.
     if (facts.cable === 'connected')
-      push({ action: 'cut', label: 'Cut connection', group: 1 });
+      push({ action: 'cut', label: t('Cut connection'), group: 1 });
     if (facts.cable === 'cut') {
-      push({ action: 'restore', label: 'Restore connection', group: 1 });
+      push({ action: 'restore', label: t('Restore connection'), group: 1 });
     }
     push(
       facts.lossRate > 0
-        ? { action: 'loss-remove', label: 'Remove packet loss', group: 1 }
+        ? { action: 'loss-remove', label: t('Remove packet loss'), group: 1 }
         : {
             action: 'loss-add',
-            label: `Add ${formatPct(DEFAULT_LOSS_RATE)} packet loss`,
+            label: t('Add {pct} packet loss', {
+              pct: formatPct(DEFAULT_LOSS_RATE),
+            }),
             group: 1,
           },
     );
-    push({ action: 'delete', label: 'Delete connection', danger: true, group: 2 });
+    push({ action: 'delete', label: t('Delete connection'), danger: true, group: 2 });
     return out;
   }
 
   push({
     action: 'paste',
-    label: 'Paste here',
+    label: t('Paste here'),
     hint: key('Ctrl+V'),
     disabled: !facts.canPaste,
     group: 0,
   });
-  push({ action: 'add', label: 'Add component here', group: 0 });
+  push({ action: 'add', label: t('Add component here'), group: 0 });
   if (facts.topology.nodes.length > 0) {
-    push({ action: 'fit', label: 'Fit diagram', hint: key('Shift+1'), group: 1 });
+    push({ action: 'fit', label: t('Fit diagram'), hint: key('Shift+1'), group: 1 });
   }
   return out;
 }

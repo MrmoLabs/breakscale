@@ -671,13 +671,20 @@
      Type stacks. System-first: the OS UI font is the one a student's eye is
      already calibrated to, it needs no network request, and it never causes
      a layout shift. No web font is loaded.
+
+     The CJK faces sit after the Latin ones and before the generic family, so
+     an English interface resolves exactly as it always did and a Chinese one
+     gets the same system-first treatment: PingFang on macOS, YaHei on
+     Windows, Noto elsewhere. Numbers keep their tabular figures from the
+     Latin faces; only the CJK glyphs fall through.
      ------------------------------------------------------------------------ */
   --sans:
     ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Inter, Roboto,
-    'Helvetica Neue', Arial, sans-serif;
+    'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC',
+    sans-serif;
   --mono:
     ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono',
-    monospace;
+    'Noto Sans Mono CJK SC', monospace;
 
   /* Annotation faces.
 
@@ -691,8 +698,12 @@
      stack ends in a generic family that always resolves, so a machine with
      none of the named faces still renders something sane rather than falling
      back to the UI sans and quietly losing the distinction. */
-  --hand: 'Caveat', 'Segoe Print', 'Bradley Hand', Chalkboard, 'Comic Neue', cursive;
-  --serif: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+  --hand:
+    'Caveat', 'Segoe Print', 'Bradley Hand', Chalkboard, 'Comic Neue', 'Kaiti SC',
+    KaiTi, cursive;
+  --serif:
+    ui-serif, Georgia, Cambria, 'Times New Roman', Times, 'Noto Serif CJK SC', 'SimSun',
+    serif;
 
   color-scheme: light;
 }

@@ -128,6 +128,8 @@ import { useReducedMotion } from '../useReducedMotion';
 import { useKeyboardConnect } from './useKeyboardConnect';
 import { shortcutLabel } from '../modKey';
 import { useLedgerFit } from './useLedgerFit';
+import { t, hasZh } from '../i18n';
+import { displayLabel, displayNote, displaySection } from '../i18n/display';
 import './Canvas.css';
 
 /* ------------------------------------------------------------------ *
@@ -291,6 +293,19 @@ const SPARK_X = 108;
 const SPARK_Y = 38;
 const SPARK_W = 64;
 const SPARK_H = 18;
+
+/**
+ * A readout cell's VALUE as printed on the box. Word values ('Down', 'OPEN',
+ * 'dark') are looked up under their own `box value:` namespace first, so a
+ * word the interface translates elsewhere with a different sense cannot bleed
+ * in: the theme's "dark" is 深色 in the settings, while a region gone dark is
+ * 中断 on its card. Numbers and formatted figures ('23ms', '3/5', 'x12') have
+ * no entry under either key and pass through untouched.
+ */
+function boxValue(value: string): string {
+  const key = `box value: ${value}`;
+  return hasZh(key) ? t(key) : t(value);
+}
 /** One sample per second over the same 60s window the charts show. */
 export const SPARK_LEN = 60;
 
@@ -1865,7 +1880,7 @@ const RetryMark = memo(function RetryMark({
   )} L${f1(ex - tx * 4 + ty * 3)},${f1(ey - ty * 4 - tx * 3)}Z`;
   const horizontal = ny !== 0;
   const long = !horizontal || leg.back + leg.ahead >= RETRY_LONG_LEG;
-  const text = `+${formatRate(rate)} ${long ? 'tried again' : 'retries'}`;
+  const text = `+${formatRate(rate)} ${long ? t('tried again') : t('retries')}`;
   return (
     <g className="cv-edge-retry" aria-hidden="true">
       <path
@@ -1933,7 +1948,7 @@ const LossMark = memo(function LossMark({
           y={horizontal ? y + (below ? 40 : 26) : py + 4}
           textAnchor={horizontal ? 'middle' : 'start'}
         >
-          {`${formatPct(share)} lost`}
+          {t('{share} lost', { share: formatPct(share) })}
         </text>
       )}
     </g>
@@ -2125,9 +2140,11 @@ const EdgeView = memo(function EdgeView({
           router sees it. */}
       <path d={d} className="cv-edge-hit" data-hit="edge" data-id={edge.id}>
         {severed ? (
-          <title>{SEVERED_HINT[state]}</title>
+          <title>{t(SEVERED_HINT[state])}</title>
         ) : (
-          retrying && <title>{`+${formatRate(retryRate)} tried again`}</title>
+          retrying && (
+            <title>{t('+{rate} tried again', { rate: formatRate(retryRate) })}</title>
+          )
         )}
       </path>
       <path d={d} className="cv-edge-line" strokeWidth={width} />
@@ -2166,7 +2183,7 @@ const EdgeView = memo(function EdgeView({
           use. Above the mark, which takes the wire's own label point. */}
       {showLabel && severed && (
         <text className="cv-edge-label is-severed" x={midX} y={midY - 11 + labelDy}>
-          {state === 'cut' ? 'cut' : 'held back'}
+          {state === 'cut' ? t('cut') : t('held back')}
         </text>
       )}
 
@@ -2195,7 +2212,7 @@ const EdgeView = memo(function EdgeView({
       */}
       {showLabel && control && (
         <text className="cv-edge-label is-control" x={midX} y={midY - 6 + labelDy}>
-          scales
+          {t('scales')}
         </text>
       )}
 
@@ -2213,7 +2230,7 @@ const EdgeView = memo(function EdgeView({
           data-hit="edge-delete"
           data-id={edge.id}
           role="button"
-          aria-label="Delete connection"
+          aria-label={t('Delete connection')}
         >
           {/* Invisible hit pad, same pattern as the ports: the visible
               button is 18x18 world px, which at zoom 1 is far below a
@@ -2360,6 +2377,8 @@ const SectionView = memo(function SectionView({
 }: SectionViewProps) {
   // Unscaled while renaming, where the in-place editor sits over the plate.
   const ls = editingLabel ? 1 : Math.min(Math.max(labelScale, 1), SEC_LABEL_MAX_SCALE);
+  // The title is design data; the plate sizes and truncates the shown one.
+  const shownTitle = displaySection(s.label);
   return (
     <g
       className={`cv-section${selected ? ' is-selected' : ''}${
@@ -2433,7 +2452,7 @@ const SectionView = memo(function SectionView({
           className="cv-section-label-bg"
           x={ls === 1 ? s.x : 0}
           y={(ls === 1 ? s.y : 0) - SEC_LABEL_H - 4}
-          width={Math.min(sectionLabelWidth(s.label), s.width / ls)}
+          width={Math.min(sectionLabelWidth(shownTitle), s.width / ls)}
           height={SEC_LABEL_H}
           rx={6}
         />
@@ -2444,7 +2463,7 @@ const SectionView = memo(function SectionView({
             y={(ls === 1 ? s.y : 0) - SEC_LABEL_H / 2 - 4}
           >
             {truncateToWidth(
-              s.label,
+              shownTitle,
               s.width / ls - SEC_LABEL_PAD_X * 2,
               SEC_LABEL_STYLE,
             )}
@@ -2491,11 +2510,15 @@ const NoteView = memo(function NoteView({
   metricsEpoch,
   readScale,
 }: NoteViewProps) {
+  // The wrap and the paint both follow the shown text, so a translated note
+  // re-wraps when the language changes (the dep below) and the editor keeps
+  // editing the stored English.
+  const shownText = displayNote(note.text);
   const layout = useMemo(
-    () => layoutNoteOf(note, note.text),
+    () => layoutNoteOf(note, shownText),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      note.text,
+      shownText,
       note.width,
       note.autoResize,
       note.size,
@@ -2557,7 +2580,7 @@ const NoteView = memo(function NoteView({
         >
           <rect width={NOTE_TAG_W} height={NOTE_TAG_H} rx={NOTE_TAG_H / 2} />
           <text x={NOTE_TAG_W / 2} y={NOTE_TAG_H / 2}>
-            Tap to read
+            {t('Tap to read')}
           </text>
         </g>
       )}
@@ -2598,7 +2621,8 @@ function contentPan(
   const nodeBox = toBox(minX, minY, maxX, maxY);
   for (const a of annotations) {
     if (!isNote(a)) continue;
-    const l = layoutNoteOf(a, a.text);
+    // The frame has to hold what is PAINTED, so the shown text lays it out.
+    const l = layoutNoteOf(a, displayNote(a.text));
     minX = Math.min(minX, a.x);
     minY = Math.min(minY, a.y);
     maxX = Math.max(maxX, a.x + l.width);
@@ -2723,7 +2747,7 @@ function SectionChrome({
             data-id={s.id}
             data-tone={i}
             role="button"
-            aria-label={`Section shade ${i + 1}`}
+            aria-label={t('Section shade {n}', { n: i + 1 })}
             x={s.x + i * (sw + swGap)}
             y={swY}
             width={sw}
@@ -2778,11 +2802,12 @@ function NoteChrome({
   /** See NoteViewProps.metricsEpoch: the ring is sized from the same wrap. */
   metricsEpoch: number;
 }) {
+  const shownText = displayNote(note.text);
   const layout = useMemo(
-    () => layoutNoteOf(note, note.text),
+    () => layoutNoteOf(note, shownText),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      note.text,
+      shownText,
       note.width,
       note.autoResize,
       note.size,
@@ -3149,7 +3174,7 @@ const WaitingLine = memo(function WaitingLine({
       transform={`translate(${PAD_X},${LINE_Y})`}
     >
       <rect className="cv-line-track" width={METER_W} height={LINE_H} rx={1.5}>
-        <title>{`${queued} of ${limit} waiting in line`}</title>
+        <title>{t('{queued} of {limit} waiting in line', { queued, limit })}</title>
       </rect>
       {fw > 0 && <rect className="cv-line-fill" width={fw} height={LINE_H} rx={1.5} />}
       <rect
@@ -3266,6 +3291,22 @@ export const NodeView = memo(function NodeView({
 }: NodeViewProps) {
   const live = stats ? readoutFor(node.kind, stats, node.config, backlog, route) : null;
   const readout = live && fault === 'crash' ? downReadout(live) : live;
+  /* The box's words, translated once, before the width fits are computed, so
+     the drawn text, its measured fit and the accessible name below all read
+     the same language. Numeric values are untouched (t passes them through
+     when no entry matches); the English labels stay the data layer, and only
+     this render copy is translated. */
+  const shown: typeof readout = readout
+    ? {
+        ...readout,
+        primary: {
+          value: boxValue(readout.primary.value),
+          label: t(readout.primary.label),
+        },
+        a: { value: boxValue(readout.a.value), label: t(readout.a.label) },
+        b: { value: boxValue(readout.b.value), label: t(readout.b.label) },
+      }
+    : null;
   // A faulted node is never reported as healthy, whatever its metrics say.
   const health: Health = fault
     ? 'danger'
@@ -3389,20 +3430,19 @@ export const NodeView = memo(function NodeView({
 
   /** The badge string as actually rendered; the name budget reserves it. */
   const badgeText = badge ? `${badge}${pending > 0 ? `+${pending}` : ''}` : '';
+  // The label is design data and stays English in the topology; the canvas
+  // paints its translation (display.ts). A label the reader typed themselves
+  // has no entry and passes through untouched.
+  const nameText = displayLabel(node.label);
   const shownName = gl
     ? truncateToWidth(
-        node.label,
+        nameText,
         NODE_W -
           PAD_X * 2 -
           (fault || health !== 'ok' ? (MARK_SIZE + NAME_GAP / 2) * cs : 0),
         { ...NAME_STYLE, size: gl.nameSize },
       )
-    : truncateLabel(
-        node.label,
-        showHeader,
-        badgeText,
-        Boolean(fault) || health !== 'ok',
-      );
+    : truncateLabel(nameText, showHeader, badgeText, Boolean(fault) || health !== 'ok');
 
   const linkClass =
     linkRole === 'none'
@@ -3426,12 +3466,14 @@ export const NodeView = memo(function NodeView({
         // The kind is dropped when the user's own label already says it, so
         // a node called "Database" is announced once, not as "Database,
         // Database". Compared case-insensitively because the label is free
-        // text the student typed.
-        node.label.trim().toLowerCase() === KIND_NAME[node.kind].toLowerCase()
+        // text the student typed — and compared in the SHOWN language, so a
+        // reader whose label reads 数据库 is not announced the same word twice
+        // either.
+        nameText.trim().toLowerCase() === t(KIND_NAME[node.kind]).trim().toLowerCase()
           ? null
-          : KIND_NAME[node.kind],
-        node.label,
-        readout ? `${readout.primary.value} ${readout.primary.label}` : null,
+          : t(KIND_NAME[node.kind]),
+        nameText,
+        shown ? `${shown.primary.value} ${shown.primary.label}` : null,
         /* The structure is announced, not just drawn. A stack of cards, a
              strip of partitions and a filling vessel are all pure geometry —
              a screen-reader user has no access to any of them, and they are
@@ -3439,25 +3481,33 @@ export const NodeView = memo(function NodeView({
              count alone: "4 partitions" beats "4x". */
         badge
           ? node.kind === 'shard' || node.kind === 'streambroker'
-            ? `${stats?.instances} partitions`
+            ? t('{n} partitions', { n: stats?.instances ?? 0 })
             : node.kind === 'replica'
-              ? `primary plus ${(stats?.instances ?? 1) - 1} read replicas`
-              : `${stats?.instances} instances`
+              ? t('primary plus {n} read replicas', {
+                  n: (stats?.instances ?? 1) - 1,
+                })
+              : t('{n} instances', { n: stats?.instances ?? 0 })
           : null,
-        pending > 0 ? `${pending} warming up` : null,
+        pending > 0 ? t('{n} warming up', { n: pending }) : null,
         showLine && stats
-          ? `${stats.queued} of ${stats.queueLimit} waiting in line${
-              line === 'refusing' ? ', turning calls away' : ''
-            }`
+          ? line === 'refusing'
+            ? t('{queued} of {limit} waiting in line, turning calls away', {
+                queued: stats.queued,
+                limit: stats.queueLimit,
+              })
+            : t('{queued} of {limit} waiting in line', {
+                queued: stats.queued,
+                limit: stats.queueLimit,
+              })
           : null,
         // The fault is announced, not just drawn: a screen-reader user has
         // no access to the square mark in the corner.
-        fault ? `faulted: ${fault}` : null,
+        fault ? t('faulted: {fault}', { fault: t(fault) }) : null,
         breakMark === undefined
           ? null
           : breakMark > 0
-            ? `fault ${breakMark} of the break`
-            : 'being tested for a break',
+            ? t('fault {n} of the break', { n: breakMark })
+            : t('being tested for a break'),
         violationMark ?? null,
       ]
         .filter(Boolean)
@@ -3608,20 +3658,20 @@ export const NodeView = memo(function NodeView({
         style={gl ? { fontSize: gl.nameSize } : undefined}
       >
         {shownName}
-        {shownName !== node.label && <title>{node.label}</title>}
+        {shownName !== nameText && <title>{nameText}</title>}
       </text>
 
-      {gl && readout && (
+      {gl && shown && (
         <text
           className="cv-node-primary"
           x={PAD_X}
           y={gl.valueY}
           style={{ fontSize: gl.valueSize }}
-          {...fitGlance(readout.primary.value, readout.primary.label, gl)}
+          {...fitGlance(shown.primary.value, shown.primary.label, gl)}
         >
-          <tspan className="cv-val">{readout.primary.value}</tspan>
+          <tspan className="cv-val">{shown.primary.value}</tspan>
           <tspan className="cv-cap" dx={gl.capGap} style={{ fontSize: gl.capSize }}>
-            {readout.primary.label}
+            {shown.primary.label}
           </tspan>
         </text>
       )}
@@ -3689,7 +3739,7 @@ export const NodeView = memo(function NodeView({
         </text>
       )}
 
-      {full && readout && (
+      {full && shown && (
         <>
           {/* The primary is width-guarded like every other cell: it shares
               its row with the sparkline / vessel (or, on strip kinds, the
@@ -3702,14 +3752,14 @@ export const NodeView = memo(function NodeView({
             x={PAD_X}
             y={52}
             {...fitPrimary(
-              readout.primary.value,
-              readout.primary.label,
+              shown.primary.value,
+              shown.primary.label,
               selected && structure !== 'strip',
             )}
           >
-            <tspan className="cv-val">{readout.primary.value}</tspan>
+            <tspan className="cv-val">{shown.primary.value}</tspan>
             <tspan className="cv-cap" dx={4}>
-              {readout.primary.label}
+              {shown.primary.label}
             </tspan>
           </text>
 
@@ -3719,21 +3769,21 @@ export const NodeView = memo(function NodeView({
               kinds, so the single most useful companion figure rides there:
               coldest partition beside hottest, stale rate beside a replica's
               utilisation, delivery (or loss) rate beside a broker's lag. */}
-          {structure === 'strip' && (readout.a.value || readout.a.label) && (
+          {structure === 'strip' && (shown.a.value || shown.a.label) && (
             <text
               className="cv-node-sec"
               x={NODE_W - PAD_X}
               y={52}
               textAnchor="end"
-              {...fitCell(readout.a.value, readout.a.label, 60)}
+              {...fitCell(shown.a.value, shown.a.label, 60)}
             >
-              <tspan className="cv-val">{readout.a.value}</tspan>
-              {readout.a.value && readout.a.label ? (
+              <tspan className="cv-val">{shown.a.value}</tspan>
+              {shown.a.value && shown.a.label ? (
                 <tspan className="cv-cap" dx={3}>
-                  {readout.a.label}
+                  {shown.a.label}
                 </tspan>
               ) : (
-                <tspan className="cv-cap">{readout.a.label}</tspan>
+                <tspan className="cv-cap">{shown.a.label}</tspan>
               )}
             </text>
           )}
@@ -3819,15 +3869,15 @@ export const NodeView = memo(function NodeView({
                 className="cv-node-sec"
                 x={PAD_X}
                 y={70}
-                {...fitCell(readout.a.value, readout.a.label, SEC_HALF)}
+                {...fitCell(shown.a.value, shown.a.label, SEC_HALF)}
               >
-                <tspan className="cv-val">{readout.a.value}</tspan>
-                {readout.a.value && readout.a.label ? (
+                <tspan className="cv-val">{shown.a.value}</tspan>
+                {shown.a.value && shown.a.label ? (
                   <tspan className="cv-cap" dx={3}>
-                    {readout.a.label}
+                    {shown.a.label}
                   </tspan>
                 ) : (
-                  <tspan className="cv-cap">{readout.a.label}</tspan>
+                  <tspan className="cv-cap">{shown.a.label}</tspan>
                 )}
               </text>
               <text
@@ -3835,15 +3885,15 @@ export const NodeView = memo(function NodeView({
                 x={NODE_W - PAD_X}
                 y={70}
                 textAnchor="end"
-                {...fitCell(readout.b.value, readout.b.label, SEC_HALF)}
+                {...fitCell(shown.b.value, shown.b.label, SEC_HALF)}
               >
-                <tspan className="cv-val">{readout.b.value}</tspan>
-                {readout.b.value && readout.b.label ? (
+                <tspan className="cv-val">{shown.b.value}</tspan>
+                {shown.b.value && shown.b.label ? (
                   <tspan className="cv-cap" dx={3}>
-                    {readout.b.label}
+                    {shown.b.label}
                   </tspan>
                 ) : (
-                  <tspan className="cv-cap">{readout.b.label}</tspan>
+                  <tspan className="cv-cap">{shown.b.label}</tspan>
                 )}
               </text>
             </>
@@ -4415,7 +4465,7 @@ export default function Canvas({
         // ran past the lowest node, which is most of them.
         const box = isSection(a)
           ? { width: a.width, height: a.height }
-          : layoutNoteOf(a, a.text);
+          : layoutNoteOf(a, displayNote(a.text));
         const h = box.height;
         if (a.x < minX) minX = a.x;
         // A section's label plate paints ABOVE its frame.
@@ -4601,9 +4651,13 @@ export default function Canvas({
   const onKeyConnect = useCallback(
     (from: string, to: string) => {
       onConnect(from, to);
-      const name = (id: string) =>
-        topoRef.current.nodes.find((n) => n.id === id)?.label ?? id;
-      setKeyLinkSaid(`Connected ${name(from)} to ${name(to)}.`);
+      const name = (id: string) => {
+        const n = topoRef.current.nodes.find((k) => k.id === id);
+        return n ? displayLabel(n.label) : id;
+      };
+      setKeyLinkSaid(
+        t('Connected {from} to {to}.', { from: name(from), to: name(to) }),
+      );
     },
     [onConnect],
   );
@@ -5069,7 +5123,7 @@ export default function Canvas({
           // never saw. h carries the note's scale at grab time rather than
           // a height: the height is derived from the text and is not ours
           // to set, and a scale drag needs its starting multiplier.
-          const box = layoutNoteOf(ann, ann.text).width;
+          const box = layoutNoteOf(ann, displayNote(ann.text)).width;
           p.annRect = { x: ann.x, y: ann.y, w: box, h: ann.scale ?? 1 };
           p.noteWrap = ann.width;
           break;
@@ -5586,7 +5640,7 @@ export default function Canvas({
               next.add(a.id);
             }
           } else {
-            const box = layoutNoteOf(a, a.text);
+            const box = layoutNoteOf(a, displayNote(a.text));
             if (
               a.x <= x1 &&
               a.x + box.width >= x0 &&
@@ -6318,7 +6372,8 @@ export default function Canvas({
       const all = { ...bounds };
       for (const a of anns) {
         if (!isNote(a)) continue;
-        const l = layoutNoteOf(a, a.text);
+        // Fit frames what is painted, so the shown text lays it out.
+        const l = layoutNoteOf(a, displayNote(a.text));
         all.minX = Math.min(all.minX, a.x);
         all.minY = Math.min(all.minY, a.y);
         all.maxX = Math.max(all.maxX, a.x + l.width);
@@ -6753,7 +6808,7 @@ export default function Canvas({
       if (group) counts.set(group.id, (counts.get(group.id) ?? 0) + 1);
     }
     return KIND_GROUPS.filter((g) => counts.has(g.id))
-      .map((g) => `${counts.get(g.id)} ${g.id}`)
+      .map((g) => `${counts.get(g.id)} ${t(g.id)}`)
       .join(', ');
   }, [topology.nodes]);
 
@@ -7494,7 +7549,7 @@ export default function Canvas({
                     textAnchor="middle"
                     dominantBaseline="central"
                   >
-                    Here
+                    {t('Here')}
                   </text>
                 </g>
               </g>
@@ -7618,7 +7673,7 @@ export default function Canvas({
               cancelRename();
             }
           }}
-          aria-label="Component name"
+          aria-label={t('Component name')}
           autoComplete="off"
           spellCheck={false}
           autoFocus
@@ -7673,7 +7728,7 @@ export default function Canvas({
               cancelLabelEdit();
             }
           }}
-          aria-label="Section label"
+          aria-label={t('Section label')}
           autoComplete="off"
           spellCheck={false}
           autoFocus
@@ -7691,7 +7746,7 @@ export default function Canvas({
         <div ref={ledgerRef} className="cv-ledger" aria-hidden="true">
           <span>
             {topology.nodes.length}{' '}
-            {topology.nodes.length === 1 ? 'component' : 'components'}
+            {topology.nodes.length === 1 ? t('component') : t('components')}
           </span>
           {/* The breakdown elaborates the total above it, so it sits next to
               it rather than at the end. Commas inside one span, not the flex
@@ -7702,12 +7757,13 @@ export default function Canvas({
           <span className="cv-ledger-groups">{nodeGroupSummary}</span>
           <span>
             {topology.edges.length}{' '}
-            {topology.edges.length === 1 ? 'connection' : 'connections'}
+            {topology.edges.length === 1 ? t('connection') : t('connections')}
           </span>
           {/* Named, so a bare "3.4s" in the corner reads as the run's own
               clock rather than as some request's latency. */}
           <span className="cv-ledger-clock">
-            Time <span className="cv-ledger-time">{formatElapsed(elapsed)}</span>
+            {t('Time ')}
+            <span className="cv-ledger-time">{formatElapsed(elapsed)}</span>
           </span>
         </div>
       )}
@@ -7722,11 +7778,16 @@ export default function Canvas({
         <p className="cv-hint" role="status">
           {keyLink
             ? keyLink.to
-              ? `Connect ${keyLink.from.label} to ${keyLink.to.label}. Arrows pick, Enter connects, Esc cancels.`
-              : `${keyLink.from.label} already connects to everything. Esc to close.`
+              ? t('Connect {from} to {to}. Arrows pick, Enter connects, Esc cancels.', {
+                  from: displayLabel(keyLink.from.label),
+                  to: displayLabel(keyLink.to.label),
+                })
+              : t('{from} already connects to everything. Esc to close.', {
+                  from: displayLabel(keyLink.from.label),
+                })
             : coarsePointer
-              ? 'Tap a component to connect'
-              : 'Click a component to connect · Esc to cancel'}
+              ? t('Tap a component to connect')
+              : t('Click a component to connect · Esc to cancel')}
         </p>
       )}
 
@@ -7736,11 +7797,11 @@ export default function Canvas({
         <p className="cv-hint" role="status">
           {tool === 'note'
             ? coarsePointer
-              ? 'Tap the canvas to place a note'
-              : 'Click the canvas to place a note · Esc to cancel'
+              ? t('Tap the canvas to place a note')
+              : t('Click the canvas to place a note · Esc to cancel')
             : coarsePointer
-              ? 'Drag to draw a section'
-              : 'Drag to draw a section · Esc to cancel'}
+              ? t('Drag to draw a section')
+              : t('Drag to draw a section · Esc to cancel')}
         </p>
       )}
 
@@ -7759,15 +7820,15 @@ export default function Canvas({
           <div className="cv-hint-idle" aria-hidden="true">
             {topology.nodes.some((n) => selectedIds.has(n.id)) ? (
               <>
-                <span>Drag to move</span>
-                <span>Delete to remove</span>
-                <span>Double-click to rename</span>
+                <span>{t('Drag to move')}</span>
+                <span>{t('Delete to remove')}</span>
+                <span>{t('Double-click to rename')}</span>
               </>
             ) : (
               <>
-                <span>Scroll to pan</span>
-                <span>Ctrl+scroll to zoom</span>
-                <span>Shift+drag to select</span>
+                <span>{t('Scroll to pan')}</span>
+                <span>{t('Ctrl+scroll to zoom')}</span>
+                <span>{t('Shift+drag to select')}</span>
               </>
             )}
           </div>
@@ -7787,14 +7848,21 @@ export default function Canvas({
       {formatNote &&
         !editingNoteId &&
         coarsePointer &&
-        noteTooSmall(layoutNoteOf(formatNote, formatNote.text).font, glance) && (
-          <section className="cv-note-read" data-chrome="note-read" aria-label="Note">
-            <p>{formatNote.text}</p>
+        noteTooSmall(
+          layoutNoteOf(formatNote, displayNote(formatNote.text)).font,
+          glance,
+        ) && (
+          <section
+            className="cv-note-read"
+            data-chrome="note-read"
+            aria-label={t('Note')}
+          >
+            <p>{displayNote(formatNote.text)}</p>
           </section>
         )}
       {formatNote && (
         <div className="cv-format" data-chrome="format">
-          <div className="cv-format-group" role="group" aria-label="Text size">
+          <div className="cv-format-group" role="group" aria-label={t('Text size')}>
             {(['sm', 'md', 'lg'] as const).map((size) => (
               <button
                 key={size}
@@ -7803,7 +7871,7 @@ export default function Canvas({
                   formatNote.size === size ? ' is-active' : ''
                 }`}
                 aria-pressed={formatNote.size === size}
-                title={`Size ${size}`}
+                title={t('Size {size}', { size })}
                 onClick={() => onSetNoteSize?.(formatNote.id, size)}
               >
                 {size === 'sm' ? 'S' : size === 'md' ? 'M' : 'L'}
@@ -7815,7 +7883,7 @@ export default function Canvas({
                 formatNote.bold ? ' is-active' : ''
               }`}
               aria-pressed={formatNote.bold === true}
-              title="Bold"
+              title={t('Bold')}
               onClick={() => onSetNoteStyle?.(formatNote.id, { bold: 'toggle' })}
             >
               B
@@ -7826,7 +7894,7 @@ export default function Canvas({
                 formatNote.italic ? ' is-active' : ''
               }`}
               aria-pressed={formatNote.italic === true}
-              title="Italic"
+              title={t('Italic')}
               onClick={() => onSetNoteStyle?.(formatNote.id, { italic: 'toggle' })}
             >
               I
@@ -7837,14 +7905,14 @@ export default function Canvas({
                 formatNote.underline ? ' is-active' : ''
               }`}
               aria-pressed={formatNote.underline === true}
-              title="Underline"
+              title={t('Underline')}
               onClick={() => onSetNoteStyle?.(formatNote.id, { underline: 'toggle' })}
             >
               U
             </button>
           </div>
 
-          <div className="cv-format-group" role="group" aria-label="Typeface">
+          <div className="cv-format-group" role="group" aria-label={t('Typeface')}>
             {ANNOTATION_FONTS.map((f) => (
               <button
                 key={f}
@@ -7854,7 +7922,7 @@ export default function Canvas({
                 }`}
                 data-font-name={f}
                 aria-pressed={(formatNote.font ?? 'sans') === f}
-                title={FONT_LABEL[f]}
+                title={t(FONT_LABEL[f])}
                 onClick={() => onSetNoteStyle?.(formatNote.id, { font: f })}
               >
                 Aa
@@ -7862,7 +7930,7 @@ export default function Canvas({
             ))}
           </div>
 
-          <div className="cv-format-group" role="group" aria-label="Text colour">
+          <div className="cv-format-group" role="group" aria-label={t('Text colour')}>
             {Array.from({ length: SECTION_TONE_COUNT }, (_, i) => (
               <button
                 key={i}
@@ -7870,7 +7938,7 @@ export default function Canvas({
                 className={`cv-format-tone${formatNote.tone === i ? ' is-active' : ''}`}
                 data-tone={i}
                 aria-pressed={formatNote.tone === i}
-                aria-label={`Colour ${i + 1}`}
+                aria-label={t('Colour {n}', { n: i + 1 })}
                 onClick={() => onSetNoteStyle?.(formatNote.id, { tone: i })}
               />
             ))}
@@ -7880,8 +7948,8 @@ export default function Canvas({
                 formatNote.tone === undefined ? ' is-active' : ''
               }`}
               aria-pressed={formatNote.tone === undefined}
-              aria-label="Default colour"
-              title="Follow the text colour"
+              aria-label={t('Default colour')}
+              title={t('Follow the text colour')}
               onClick={() => onSetNoteStyle?.(formatNote.id, { tone: null })}
             />
           </div>
@@ -7928,14 +7996,14 @@ export default function Canvas({
             glance line) and drops the rest. Said here, beside the zoom, so a
             fitted diagram with quiet cards does not read as broken. */}
         {view.k < DETAIL_ZOOM && topology.nodes.length > 0 ? (
-          <p className="cv-zoom-note">Zoom to 70% for every number</p>
+          <p className="cv-zoom-note">{t('Zoom to 70% for every number')}</p>
         ) : null}
         <button
           type="button"
           className="btn btn-ghost"
           onClick={() => zoomBy(1 / ZOOM_STEP)}
-          aria-label="Zoom out"
-          title={`Zoom out (${shortcutLabel('Ctrl+-')})`}
+          aria-label={t('Zoom out')}
+          title={t('Zoom out ({keys})', { keys: shortcutLabel('Ctrl+-') })}
         >
           &minus;
         </button>
@@ -7946,8 +8014,10 @@ export default function Canvas({
           // Still fits, because someone who learned to click the number
           // should keep being right. The icon beside it is what makes the
           // action findable in the first place.
-          aria-label={`Zoom ${Math.round(view.k * 100)} percent. Fit the diagram on screen`}
-          title="Fit the diagram on screen (Shift+1)"
+          aria-label={t('Zoom {n} percent. Fit the diagram on screen', {
+            n: Math.round(view.k * 100),
+          })}
+          title={t('Fit the diagram on screen (Shift+1)')}
         >
           {Math.round(view.k * 100)}%
         </button>
@@ -7955,8 +8025,8 @@ export default function Canvas({
           type="button"
           className="btn btn-ghost"
           onClick={() => zoomBy(ZOOM_STEP)}
-          aria-label="Zoom in"
-          title={`Zoom in (${shortcutLabel('Ctrl+=')})`}
+          aria-label={t('Zoom in')}
+          title={t('Zoom in ({keys})', { keys: shortcutLabel('Ctrl+=') })}
         >
           +
         </button>
@@ -7974,8 +8044,8 @@ export default function Canvas({
           type="button"
           className="btn btn-ghost"
           onClick={fitAll}
-          aria-label="Fit the diagram on screen"
-          title="Fit the diagram on screen (Shift+1)"
+          aria-label={t('Fit the diagram on screen')}
+          title={t('Fit the diagram on screen (Shift+1)')}
         >
           <svg
             width="14"

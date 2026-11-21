@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { NodeConfig, NodeKind } from '../sim/types';
+import { t } from '../i18n';
 import { useVendor } from '../content/vendors/useVendor';
 import { mappingFor } from '../content/vendors/lookup';
 import { DERIVED_NOTE, applySize, isSizedKind } from '../content/vendors/derive';
@@ -39,15 +40,15 @@ export function VendorPanel({ nodeId, kind, config, onChange }: VendorPanelProps
   const sizeable = isSizedKind(kind) && sizes.length > 0;
 
   return (
-    <section className="vp" aria-label={`${vendor.label} details`}>
-      <p className="label vp-eyebrow">On {vendor.label}</p>
+    <section className="vp" aria-label={t('{name} details', { name: vendor.label })}>
+      <p className="label vp-eyebrow">{t('On {name}', { name: vendor.label })}</p>
       <p className="vp-product">{mapping.product}</p>
-      {mapping.note && <p className="vp-note">{mapping.note}</p>}
+      {mapping.note && <p className="vp-note">{t(mapping.note)}</p>}
 
       {sizes.length > 0 && (
         <>
           <label className="vp-field">
-            <span className="vp-label">Size</span>
+            <span className="vp-label">{t('Size')}</span>
             {/* Uncontrolled on purpose. A size is an ACTION, not a stored
                 property: picking one writes a capacity and the component
                 then belongs to the student, who may tune it further. Binding
@@ -72,7 +73,7 @@ export function VendorPanel({ nodeId, kind, config, onChange }: VendorPanelProps
                 if (next !== config) onChange({ capacity: next.capacity });
               }}
             >
-              <option value="">Choose a size</option>
+              <option value="">{t('Choose a size')}</option>
               {sizes.map((s) => (
                 <option key={s.name} value={s.name}>
                   {s.name}
@@ -84,25 +85,31 @@ export function VendorPanel({ nodeId, kind, config, onChange }: VendorPanelProps
           </label>
 
           {sizeable ? (
-            <p className="vp-derived">{DERIVED_NOTE}</p>
+            <p className="vp-derived">{t(DERIVED_NOTE)}</p>
           ) : (
             /* A size is shown for its published specs and its price, but
                nothing about it changes the simulation, and saying so is
                better than letting a reader assume the picker did something. */
             <p className="vp-derived">
-              These sizes are for their published specs and prices. This kind is not
-              limited by an instance size, so picking one changes nothing in the
-              simulation.
+              {t(
+                'These sizes are for their published specs and prices. This kind is not limited by an instance size, so picking one changes nothing in the simulation.',
+              )}
             </p>
           )}
 
           <p className="vp-source">
-            Specs and prices published by {vendor.label}
-            {vendor.region ? ` for ${vendor.region}` : ''}.{' '}
+            {vendor.region
+              ? t('Specs and prices published by {name} for {region}', {
+                  name: vendor.label,
+                  region: vendor.region,
+                })
+              : t('Specs and prices published by {name}', { name: vendor.label })}
+            .{' '}
             <a href={sizes[0]!.source} target="_blank" rel="noreferrer noopener">
-              Source
+              {t('Source')}
             </a>
-            {sizes[0]!.pricedOn ? `, read ${sizes[0]!.pricedOn}` : ''}.
+            {sizes[0]!.pricedOn ? t(', read {date}', { date: sizes[0]!.pricedOn }) : ''}
+            .
           </p>
         </>
       )}

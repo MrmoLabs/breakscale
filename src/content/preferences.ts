@@ -64,12 +64,28 @@ export interface Preferences {
    * up with three meanings and no name for the third.
    */
   theme: ThemeChoice;
+  /**
+   * Interface language.
+   *
+   * Same three-state shape as the theme, for the same reason: `system` is a
+   * real choice, not the absence of one. It resolves once at startup from
+   * the browser's language, and a reader who wants the other language picks
+   * it here rather than reconfiguring their whole machine. Stored English
+   * data (design files, share links) is untouched by this choice; only what
+   * is rendered changes.
+   */
+  language: LanguageChoice;
 }
 
 /** What the reader picked. `system` defers to the OS. */
 export type ThemeChoice = 'light' | 'dark' | 'system';
 
 export const THEME_CHOICES: readonly ThemeChoice[] = ['light', 'dark', 'system'];
+
+/** What the reader picked. `system` defers to the browser language. */
+export type LanguageChoice = 'system' | 'en' | 'zh';
+
+export const LANGUAGE_CHOICES: readonly LanguageChoice[] = ['system', 'en', 'zh'];
 
 export const DEFAULT_PREFERENCES: Preferences = {
   tooltips: true,
@@ -81,6 +97,10 @@ export const DEFAULT_PREFERENCES: Preferences = {
   // Follow the OS until told otherwise. Picking light as the default would
   // flash a bright page at someone whose machine is set to dark.
   theme: 'system',
+  // Follow the browser language until told otherwise, so a reader on a
+  // Chinese machine gets the Chinese interface without going looking for a
+  // setting they did not know existed.
+  language: 'system',
 };
 
 const STORAGE_KEY = 'breakscale.preferences.v1';
@@ -110,6 +130,7 @@ function load(): Preferences {
       trafficDots: bool(p.trafficDots, DEFAULT_PREFERENCES.trafficDots),
       vendor: vendor(p.vendor),
       theme: theme(p.theme),
+      language: language(p.language),
     };
   } catch {
     return DEFAULT_PREFERENCES;
@@ -130,6 +151,10 @@ function theme(v: unknown): ThemeChoice {
   return v === 'light' || v === 'dark' || v === 'system'
     ? v
     : DEFAULT_PREFERENCES.theme;
+}
+
+function language(v: unknown): LanguageChoice {
+  return v === 'system' || v === 'en' || v === 'zh' ? v : DEFAULT_PREFERENCES.language;
 }
 
 function persist(): void {
@@ -165,6 +190,17 @@ function subscribe(fn: () => void): () => void {
   return () => {
     listeners.delete(fn);
   };
+}
+
+/**
+ * Subscribe non-React code to the whole set.
+ *
+ * The i18n module listens this way: when the language preference changes it
+ * must update its resolved locale before React re-renders the components
+ * that read translated strings.
+ */
+export function watchPreferences(fn: () => void): () => void {
+  return subscribe(fn);
 }
 
 /** Subscribe to the whole set. Re-renders only when something actually changes. */

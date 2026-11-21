@@ -1,4 +1,5 @@
 import type { Challenge } from '../sim/challenge';
+import { t } from '../i18n';
 
 /* ==========================================================================
    The trouble a brief promises, in words.
@@ -36,20 +37,20 @@ export function briefTrouble(
   }
   if (first === null) return null;
   if (first.action === 'cut') {
-    return { atMs: first.atMs, what: 'a connection is cut', noun: 'Cut' };
+    return { atMs: first.atMs, what: t('a connection is cut'), noun: t('Cut') };
   }
   if (first.action === 'duplicate') {
     return {
       atMs: first.atMs,
-      what: 'a connection starts delivering some calls twice',
-      noun: 'Duplicates',
+      what: t('a connection starts delivering some calls twice'),
+      noun: t('Duplicates'),
     };
   }
   if (first.action === 'cut-replies') {
     return {
       atMs: first.atMs,
-      what: 'a connection starts losing its answers',
-      noun: 'Lost answers',
+      what: t('a connection starts losing its answers'),
+      noun: t('Lost answers'),
     };
   }
   if (first.action !== 'inject') return null;
@@ -59,27 +60,43 @@ export function briefTrouble(
   const name = raw.includes(',') ? `${raw},` : raw;
   switch (first.kind) {
     case 'crash':
-      return { atMs: first.atMs, what: `${name} goes down`, noun: 'Outage' };
+      return {
+        atMs: first.atMs,
+        what: t('{name} goes down', { name }),
+        noun: t('Outage'),
+      };
     case 'crash-instance':
       return {
         atMs: first.atMs,
-        what: `one ${name} machine crashes`,
-        noun: 'Crash',
+        what: t('one {name} machine crashes', { name }),
+        noun: t('Crash'),
       };
     case 'slow':
-      return { atMs: first.atMs, what: `${name} slows down`, noun: 'Slowdown' };
+      return {
+        atMs: first.atMs,
+        what: t('{name} slows down', { name }),
+        noun: t('Slowdown'),
+      };
     case 'errors':
       return {
         atMs: first.atMs,
-        what: `${name} starts failing requests`,
-        noun: 'Errors',
+        what: t('{name} starts failing requests', { name }),
+        noun: t('Errors'),
       };
     case 'partition':
-      return { atMs: first.atMs, what: `${name} is cut off`, noun: 'Outage' };
+      return {
+        atMs: first.atMs,
+        what: t('{name} is cut off', { name }),
+        noun: t('Outage'),
+      };
     case 'pause':
-      return { atMs: first.atMs, what: `${name} stalls`, noun: 'Stall' };
+      return { atMs: first.atMs, what: t('{name} stalls', { name }), noun: t('Stall') };
     case 'restart':
-      return { atMs: first.atMs, what: `${name} restarts`, noun: 'Restart' };
+      return {
+        atMs: first.atMs,
+        what: t('{name} restarts', { name }),
+        noun: t('Restart'),
+      };
     default:
       return null;
   }

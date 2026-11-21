@@ -1,5 +1,6 @@
 import { Engine } from '../../src/sim/engine';
 import { sanitizeSeed } from '../../src/sim/seed';
+import { t, getLocale } from '../../src/i18n';
 import type {
   FailureReason,
   RouteStats,
@@ -109,17 +110,39 @@ export function describeRun(
 ): string {
   const { system, nodes, failuresByReason } = run.snapshot;
   const lines: string[] = [];
+  const why = (r: FailureReason, n: number): string =>
+    `${n} ${t(REASON_WORDS[r] ?? r)}`;
 
   const secs = Math.round(run.simulatedMs / 1000);
   const short =
     run.simulatedMs < opts.seconds * 1000
-      ? ` (stopped at ${secs}s of ${opts.seconds}s: the design is too heavy to simulate further here)`
+      ? t(
+          ' (stopped at {secs}s of {total}s: the design is too heavy to simulate further here)',
+          {
+            secs,
+            total: opts.seconds,
+          },
+        )
       : '';
-  lines.push(`Simulated ${secs}s with seed ${run.seed ?? opts.seed}${short}.`);
   lines.push(
-    `Offered ${perSec(system.offeredRps)}, served ${perSec(system.goodputRps)}, ` +
-      `${pct(system.errorRate)} failed. ` +
-      `Latency p50 ${ms(system.p50)}, p95 ${ms(system.p95)}, p99 ${ms(system.p99)}.`,
+    t('Simulated {secs}s with seed {seed}{short}.', {
+      secs,
+      seed: run.seed ?? opts.seed,
+      short,
+    }),
+  );
+  lines.push(
+    t(
+      'Offered {offered}, served {served}, {failed} failed. Latency p50 {p50}, p95 {p95}, p99 {p99}.',
+      {
+        offered: perSec(system.offeredRps),
+        served: perSec(system.goodputRps),
+        failed: pct(system.errorRate),
+        p50: ms(system.p50),
+        p95: ms(system.p95),
+        p99: ms(system.p99),
+      },
+    ),
   );
 
   const reasons = (Object.entries(failuresByReason) as [FailureReason, number][])
@@ -127,9 +150,9 @@ export function describeRun(
     .sort((a, b) => b[1] - a[1]);
   if (reasons.length > 0) {
     lines.push(
-      'Failed requests over the run: ' +
-        reasons.map(([r, n]) => `${n} ${REASON_WORDS[r] ?? r}`).join('; ') +
-        '.',
+      t('Failed requests over the run: {list}.', {
+        list: reasons.map(([r, n]) => why(r, n)).join('; '),
+      }),
     );
   }
 
@@ -137,25 +160,39 @@ export function describeRun(
 
   // With one client its figures are the system's, already said above.
   if (run.routes.length > 1) {
-    lines.push('', 'By traffic source (each client and its own requests, end to end):');
+    lines.push(
+      '',
+      t('By traffic source (each client and its own requests, end to end):'),
+    );
     for (const r of run.routes) {
       const name = byId.get(r.clientId)?.label ?? r.clientId;
       const settled = r.goodputRps + r.failedRps;
       const parts = [
-        `offered ${perSec(r.offeredRps)}`,
-        `served ${perSec(r.goodputRps)}`,
+        t('offered {rate}', { rate: perSec(r.offeredRps) }),
+        t('served {rate}', { rate: perSec(r.goodputRps) }),
       ];
-      if (settled > 0) parts.push(`${pct(r.errorRate)} failed`);
-      if (r.goodputRps > 0) parts.push(`p99 ${ms(r.p99)}`);
+      if (settled > 0) parts.push(t('{pct} failed', { pct: pct(r.errorRate) }));
+      if (r.goodputRps > 0) parts.push(t('p99 {ms}', { ms: ms(r.p99) }));
       const reasons = (Object.entries(r.failuresByReason) as [FailureReason, number][])
         .filter(([, n]) => n > 0)
         .sort((a, b) => b[1] - a[1]);
       const over =
-        `over the run ${r.totalCompleted} served, ${r.totalFailed} failed` +
+        t('over the run {a} served, {b} failed', {
+          a: r.totalCompleted,
+          b: r.totalFailed,
+        }) +
         (reasons.length > 0
-          ? ` (${reasons.map(([why, n]) => `${n} ${REASON_WORDS[why] ?? why}`).join('; ')})`
+          ? ` (${reasons.map(([w, n]) => why(w, n)).join('; ')})`
           : '');
-      lines.push(`- ${name} (id '${r.clientId}'): ${parts.join(', ')}; ${over}`);
+      lines.push(
+        t("- {name} (id '{id}'): {parts}; {over}", {
+          name,
+          id: r.clientId,
+          // zh sentences read better with the full-width comma.
+          parts: parts.join(getLocale() === 'zh' ? '，' : ', '),
+          over,
+        }),
+      );
     }
   }
   const rows = Object.entries(nodes)
@@ -185,23 +222,40 @@ export function describeRun(
   const shown = [...new Set([...busy.slice(0, 5), ...failing])];
 
   if (shown.length > 0) {
-    lines.push('', 'Components (busiest first):');
+    lines.push('', t('Components (busiest first):'));
     for (const { id, s, node } of shown) {
-      const parts = [`${perSec(s.arrivalRate)} in, ${perSec(s.throughput)} done`];
-      if (s.utilization > 0) parts.push(`${pct(Math.min(s.utilization, 1))} busy`);
+      const parts = [
+        t('{in} in, {done} done', {
+          in: perSec(s.arrivalRate),
+          done: perSec(s.throughput),
+        }),
+      ];
+      if (s.utilization > 0)
+        parts.push(t('{pct} busy', { pct: pct(Math.min(s.utilization, 1)) }));
       if ((s.waitingOnDownstream ?? 0) > 0)
         parts.push(
-          `${Math.round(s.waitingOnDownstream ?? 0)} slots held waiting on its calls`,
+          t('{n} slots held waiting on its calls', {
+            n: Math.round(s.waitingOnDownstream ?? 0),
+          }),
         );
-      if (s.queued >= 1) parts.push(`${Math.round(s.queued)} waiting`);
-      if (s.throughput > 0) parts.push(`p99 ${ms(s.p99)}`);
-      if (s.errorRate > 0) parts.push(`${pct(s.errorRate)} failed`);
-      if (s.shedRate > 0) parts.push(`${perSec(s.shedRate)} turned away`);
-      if (s.timeoutRate > 0) parts.push(`${perSec(s.timeoutRate)} timed out`);
+      if (s.queued >= 1) parts.push(t('{n} waiting', { n: Math.round(s.queued) }));
+      if (s.throughput > 0) parts.push(t('p99 {ms}', { ms: ms(s.p99) }));
+      if (s.errorRate > 0) parts.push(t('{pct} failed', { pct: pct(s.errorRate) }));
+      if (s.shedRate > 0)
+        parts.push(t('{rate} turned away', { rate: perSec(s.shedRate) }));
+      if (s.timeoutRate > 0)
+        parts.push(t('{rate} timed out', { rate: perSec(s.timeoutRate) }));
       if (node?.kind === 'cache' || node?.kind === 'cdn')
-        parts.push(`hit rate ${pct(s.hitRate)}`);
+        parts.push(t('hit rate {pct}', { pct: pct(s.hitRate) }));
       lines.push(
-        `- ${node?.label ?? id} (${node?.kind}, id '${id}'): ${parts.join(', ')}`,
+        t("- {label} ({kind}, id '{id}'): {parts}", {
+          label: node?.label ?? id,
+          // `shown` only keeps rows whose node exists; the fallback is
+          // unreachable but keeps the type honest.
+          kind: node?.kind ?? 'unknown',
+          id,
+          parts: parts.join(getLocale() === 'zh' ? '，' : ', '),
+        }),
       );
     }
   }

@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { rankCommands, type Command } from '../commands';
+import { t, tN } from '../i18n';
 import { usePresence } from './presence';
 import './CommandPalette.css';
 
@@ -127,7 +128,7 @@ function PaletteCard({
         className="cp-card"
         role="dialog"
         aria-modal="true"
-        aria-label="Search actions"
+        aria-label={t('Search actions')}
         onAnimationEnd={(e) => {
           if (closing && e.target === e.currentTarget) unmount();
         }}
@@ -155,8 +156,8 @@ function PaletteCard({
             aria-controls={`${base}-list`}
             aria-autocomplete="list"
             aria-activedescendant={current ? `${base}-${current.id}` : undefined}
-            aria-label="Search actions"
-            placeholder="Type an action, a part or an example"
+            aria-label={t('Search actions')}
+            placeholder={t('Type an action, a part or an example')}
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
@@ -175,7 +176,7 @@ function PaletteCard({
           id={`${base}-list`}
           className="cp-list"
           role="listbox"
-          aria-label="Actions"
+          aria-label={t('Actions')}
         >
           {rows.map((c, i) => (
             <div
@@ -197,20 +198,20 @@ function PaletteCard({
                 <span className="cp-label">{c.label}</span>
                 {c.disabled ? <span className="cp-why">{c.disabled}</span> : null}
               </span>
-              <span className="cp-group">{c.group}</span>
+              <span className="cp-group">{t(c.group)}</span>
               {c.hint ? <kbd className="cp-kbd">{c.hint}</kbd> : null}
             </div>
           ))}
           {rows.length === 0 ? (
-            <p className="cp-none">Nothing matches that. Try fewer letters.</p>
+            <p className="cp-none">{t('Nothing matches that. Try fewer letters.')}</p>
           ) : null}
         </div>
         <p className="cp-status" role="status">
           {query.trim() === ''
             ? ''
             : rows.length === 0
-              ? 'No matches'
-              : `${rows.length} ${rows.length === 1 ? 'match' : 'matches'}`}
+              ? t('No matches')
+              : tN(rows.length, '1 match', '{n} matches')}
         </p>
       </div>
     </div>

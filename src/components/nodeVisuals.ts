@@ -1,5 +1,6 @@
 import type { IconNode } from 'lucide';
 import type { NodeKind } from '../sim/types';
+import { getLocale, t } from '../i18n';
 
 /* ------------------------------------------------------------------ *
  * Kind icons, from Lucide.
@@ -276,9 +277,14 @@ export const KIND_NAME: Record<NodeKind, string> = {
  * "What is an Edge compute?", for the palette's question mark. The article
  * follows the sound, not the letter: "an API gateway", "a CDN". The one
  * plural name gets "are".
+ *
+ * The a/an rule is English-specific, so the Chinese interface takes its own
+ * branch, building the question around the translated kind name; the English
+ * path is untouched, byte for byte, because the copy test pins it.
  */
 export function whatIsKind(kind: NodeKind): string {
   const name = KIND_NAME[kind];
+  if (getLocale() === 'zh') return `什么是${t(name)}？`;
   if (kind === 'replica') return `What are ${name}?`;
   const article = /^[AEIO]/.test(name) ? 'an' : 'a';
   return `What is ${article} ${name}?`;

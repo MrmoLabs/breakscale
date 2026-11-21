@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { usePresence } from './presence';
+import { t } from '../i18n';
 import { hasStore } from '../share/store';
 import './Share.css';
 import { CloseButton } from './CloseButton';
@@ -189,7 +190,7 @@ export function Share({ open, onClose, onBuild, replayable = false, onExport }: 
 
   /** The link landed but the clipboard refused it: hand over the field. */
   const manual = (kind: ShareKind) => {
-    setStatus('Link ready. Copy it from the field.');
+    setStatus(t('Link ready. Copy it from the field.'));
     // After the field renders, so there is something to select.
     requestAnimationFrame(() => fieldRefs.current[kind]?.select());
   };
@@ -201,7 +202,7 @@ export function Share({ open, onClose, onBuild, replayable = false, onExport }: 
       // Already built: copy it again rather than storing a second copy.
       if (await writeNow(link.url)) {
         setCopiedUrl(link.url);
-        setStatus('Link copied');
+        setStatus(t('Link copied'));
       } else manual(kind);
       return;
     }
@@ -219,7 +220,7 @@ export function Share({ open, onClose, onBuild, replayable = false, onExport }: 
     const copied = (early !== null && (await early)) || (await writeNow(result.url));
     if (copied) {
       setCopiedUrl(result.url);
-      setStatus('Link copied');
+      setStatus(t('Link copied'));
     } else manual(kind);
   };
 
@@ -239,7 +240,7 @@ export function Share({ open, onClose, onBuild, replayable = false, onExport }: 
       >
         <div className="sh-head">
           <h2 id="sh-title" className="sh-title">
-            Share
+            {t('Share')}
           </h2>
           <CloseButton onClick={onClose} />
         </div>
@@ -252,9 +253,9 @@ export function Share({ open, onClose, onBuild, replayable = false, onExport }: 
             return (
               <section key={o.kind} className="sh-option" aria-labelledby={headId}>
                 <h3 id={headId} className="sh-option-title">
-                  {o.title}
+                  {t(o.title)}
                 </h3>
-                <p className="sh-note">{o.blurb}</p>
+                <p className="sh-note">{t(o.blurb)}</p>
                 {link.status === 'failed' && (
                   <p className="sh-note sh-note-bad">{link.message}</p>
                 )}
@@ -267,13 +268,14 @@ export function Share({ open, onClose, onBuild, replayable = false, onExport }: 
                     readOnly
                     value={link.url}
                     onFocus={(e) => e.currentTarget.select()}
-                    aria-label={o.label}
+                    aria-label={t(o.label)}
                   />
                 )}
                 {link.status === 'ready' && o.kind === 'run' && (
                   <p className="sh-note">
-                    If you changed the design partway through, the replay uses it as it
-                    is now.
+                    {t(
+                      'If you changed the design partway through, the replay uses it as it is now.',
+                    )}
                   </p>
                 )}
                 <button
@@ -287,12 +289,12 @@ export function Share({ open, onClose, onBuild, replayable = false, onExport }: 
                 >
                   {copied && <Check size={14} strokeWidth={2} aria-hidden="true" />}
                   {link.status === 'working'
-                    ? 'Making link…'
+                    ? t('Making link…')
                     : link.status === 'failed'
-                      ? 'Try again'
+                      ? t('Try again')
                       : copied
-                        ? 'Copied'
-                        : 'Copy link'}
+                        ? t('Copied')
+                        : t('Copy link')}
                 </button>
               </section>
             );
@@ -304,11 +306,13 @@ export function Share({ open, onClose, onBuild, replayable = false, onExport }: 
               is stored or encrypted, so the claim is only made when true. */}
           <p className="sh-note">
             {hasStore()
-              ? 'Encrypted in your browser before it is stored. The store cannot read it.'
-              : 'The design travels inside the link itself.'}
+              ? t(
+                  'Encrypted in your browser before it is stored. The store cannot read it.',
+                )
+              : t('The design travels inside the link itself.')}
           </p>
           <button type="button" className="sh-btn sh-btn-quiet" onClick={onExport}>
-            Save to a file
+            {t('Save to a file')}
           </button>
         </div>
 

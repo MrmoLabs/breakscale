@@ -1,5 +1,6 @@
 import type { ActiveFailure, FailureKind, FailureOpts, FaultEvent } from '../sim/types';
 import type { HistorySnapshot, SessionHistory } from '../history';
+import { t } from '../i18n';
 import type { FaultActions, FaultEngine } from './faultWiring';
 
 /* ------------------------------------------------------------------ *
@@ -321,21 +322,21 @@ export function undoableFaultActions(
   };
   return {
     onInject: (id, kind, opts) =>
-      node(INJECT_LABEL[kind], id, () => actions.onInject(id, kind, opts)),
-    onFix: (id) => node('fix', id, () => actions.onFix(id)),
-    onCut: (id) => edge('cable cut', id, () => actions.onCut(id)),
-    onRestore: (id) => edge('cable restore', id, () => actions.onRestore(id)),
+      node(t(INJECT_LABEL[kind]), id, () => actions.onInject(id, kind, opts)),
+    onFix: (id) => node(t('fix'), id, () => actions.onFix(id)),
+    onCut: (id) => edge(t('cable cut'), id, () => actions.onCut(id)),
+    onRestore: (id) => edge(t('cable restore'), id, () => actions.onRestore(id)),
     onDuplicate: (id, rate) =>
-      dup('deliver twice', id, () => actions.onDuplicate(id, rate)),
-    onUndup: (id) => dup('deliver once', id, () => actions.onUndup(id)),
-    onCutReplies: (id) => replies('answer cut', id, () => actions.onCutReplies(id)),
+      dup(t('deliver twice'), id, () => actions.onDuplicate(id, rate)),
+    onUndup: (id) => dup(t('deliver once'), id, () => actions.onUndup(id)),
+    onCutReplies: (id) => replies(t('answer cut'), id, () => actions.onCutReplies(id)),
     onRestoreReplies: (id) =>
-      replies('answer restore', id, () => actions.onRestoreReplies(id)),
+      replies(t('answer restore'), id, () => actions.onRestoreReplies(id)),
     onForget: () => {
       const before = engine.faultSchedule();
       actions.onForget();
       if (before.length === 0 || engine.faultSchedule().length > 0) return;
-      onEntry('forget saved faults', { target: 'schedule', before });
+      onEntry(t('forget saved faults'), { target: 'schedule', before });
     },
   };
 }

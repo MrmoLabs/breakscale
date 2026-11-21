@@ -1,4 +1,6 @@
 import { memo, useMemo } from 'react';
+import { t, getLocale } from '../i18n';
+import { displayLabel } from '../i18n/display';
 import type { SimNode } from '../sim/types';
 import { useVendor } from '../content/vendors/useVendor';
 import { sizeKey, useSizes } from '../content/vendors/sizing';
@@ -42,16 +44,16 @@ export const Cost = memo(function Cost({ nodes }: CostProps) {
   const priced = cost.nodes.length > 0;
 
   return (
-    <section className="ct" aria-label="Estimated cost">
+    <section className="ct" aria-label={t('Estimated cost')}>
       <header className="mx-head">
-        <span className="label mx-eyebrow">Monthly cost</span>
+        <span className="label mx-eyebrow">{t('Monthly cost')}</span>
         {priced && (
           <span className="mx-head-right">
             <span className="mx-readout-wrap">
               <span className="num num-lg mx-readout">
                 {formatMoney(cost.perMonth)}
               </span>
-              <span className="unit mx-unit">/mo</span>
+              <span className="unit mx-unit">{t('/mo')}</span>
             </span>
           </span>
         )}
@@ -59,16 +61,19 @@ export const Cost = memo(function Cost({ nodes }: CostProps) {
 
       {!priced ? (
         <p className="ct-empty">
-          Pick an instance size for a component in the inspector and its cost will
-          appear here.
+          {t(
+            'Pick an instance size for a component in the inspector and its cost will appear here.',
+          )}
         </p>
       ) : (
         <>
           <ol className="ct-rows">
             {cost.nodes.map((n) => (
               <li key={n.nodeId} className="ct-row">
-                <span className="ct-name" title={n.label}>
-                  {n.label}
+                {/* The stored label stays English; the row shows the
+                    translation (display.ts). */}
+                <span className="ct-name" title={displayLabel(n.label)}>
+                  {displayLabel(n.label)}
                 </span>
                 <span className="ct-size">
                   {n.sizeName}
@@ -84,11 +89,15 @@ export const Cost = memo(function Cost({ nodes }: CostProps) {
                looks complete and is wrong by an unknown amount, which is
                worse than a total that admits what it left out. */
             <p className="ct-unpriced">
-              Not counted, no size chosen: {cost.unpriced.join(', ')}.
+              {t('Not counted, no size chosen: {names}.', {
+                names: cost.unpriced
+                  .map(displayLabel)
+                  .join(getLocale() === 'zh' ? '、' : ', '),
+              })}
             </p>
           )}
 
-          <p className="ct-note">{COST_NOTE}</p>
+          <p className="ct-note">{t(COST_NOTE)}</p>
         </>
       )}
     </section>

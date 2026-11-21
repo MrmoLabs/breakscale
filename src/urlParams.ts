@@ -7,11 +7,12 @@
  *
  *   ?preset=<preset id>       load that example instead of the stored session
  *   ?theme=light|dark|system  override the theme for this page view
+ *   ?language=en|zh|system    override the interface language for this view
  *   ?paused=1                 boot with the simulation frozen
  *   ?warmup=<ms>              advance the simulation deterministically before
  *                             the first paint, capped at one minute
  *
- * `theme` is also read from the hash (`#theme=dark`), which is where a human
+ * `theme` and `language` are also read from the hash (`#theme=dark`), which is where a human
  * pasting a link tends to put it; the query wins when both are present. The
  * hash is otherwise share-link territory (the d1./d2. prefixes) and is left
  * alone: those payloads contain no "=" parameters, so parsing them is a
@@ -24,13 +25,15 @@
  */
 
 import { PRESETS } from './sim/presets';
-import type { ThemeChoice } from './content/preferences';
+import type { ThemeChoice, LanguageChoice } from './content/preferences';
 
 export interface BootParams {
   /** A validated preset id, or null for "use the stored session". */
   readonly presetId: string | null;
   /** A validated theme choice, or null for "use the stored preference". */
   readonly theme: ThemeChoice | null;
+  /** A validated language choice, or null for "use the stored preference". */
+  readonly language: LanguageChoice | null;
   /** Boot with the simulation paused. */
   readonly paused: boolean;
   /** Simulated milliseconds to advance before the first paint. */
@@ -40,11 +43,13 @@ export interface BootParams {
 export const EMPTY_BOOT_PARAMS: BootParams = {
   presetId: null,
   theme: null,
+  language: null,
   paused: false,
   warmupMs: 0,
 };
 
 const THEME_CHOICES: readonly ThemeChoice[] = ['light', 'dark', 'system'];
+const LANGUAGE_CHOICES: readonly LanguageChoice[] = ['system', 'en', 'zh'];
 
 /** One minute of simulated warmup is more than any screenshot needs. */
 const WARMUP_MAX_MS = 60_000;
@@ -67,6 +72,13 @@ export function parseBootParams(search: string, hash: string): BootParams {
       ? (themeRaw as ThemeChoice)
       : null;
 
+  const languageRaw = readParam(search, hash, 'language');
+  const language =
+    languageRaw !== null &&
+    (LANGUAGE_CHOICES as readonly string[]).includes(languageRaw)
+      ? (languageRaw as LanguageChoice)
+      : null;
+
   const pausedRaw = readParam(search, hash, 'paused');
   const paused = pausedRaw === '1' || pausedRaw === 'true';
 
@@ -77,5 +89,5 @@ export function parseBootParams(search: string, hash: string): BootParams {
     if (Number.isFinite(n) && n > 0) warmupMs = Math.min(Math.round(n), WARMUP_MAX_MS);
   }
 
-  return { presetId, theme, paused, warmupMs };
+  return { presetId, theme, language, paused, warmupMs };
 }

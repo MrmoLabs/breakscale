@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import type { ReactNode } from 'react';
 import { Info } from 'lucide-react';
+import { t } from '../i18n';
 import { splitHint } from './splitHint';
 
 /**
@@ -46,7 +47,7 @@ export function HintLine({
         <button
           type="button"
           className="ins-more-btn"
-          aria-label={`More about ${about}`}
+          aria-label={t('More about {what}', { what: about })}
           aria-describedby={id}
         >
           <Info size={14} strokeWidth={2} aria-hidden="true" />

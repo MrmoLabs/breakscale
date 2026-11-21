@@ -1,4 +1,5 @@
 import type { FailureReason, RouteStats } from '../sim/types';
+import { t } from '../i18n';
 import { formatMs, formatPct, healthOfLatency } from './format';
 
 /* ------------------------------------------------------------------ *
@@ -111,17 +112,19 @@ export function dominantReason(r: RouteStats): FailureReason | null {
 /** "A", "A and B", "A, B and C". */
 function list(names: readonly string[]): string {
   if (names.length <= 1) return names[0] ?? '';
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return `${names.slice(0, -1).join(t(', '))}${t(' and ')}${names[names.length - 1]}`;
 }
 
 /** What is wrong with one hurting route, after its name. */
 function trouble(r: RouteStats): string {
   if (r.errorRate >= ROUTE_HURT_ERR) {
     const why = dominantReason(r);
-    const failing = `${formatPct(r.errorRate)} failing`;
-    return why ? `${failing}, mostly ${MOSTLY[why]}` : failing;
+    const failing = t('{share} failing', { share: formatPct(r.errorRate) });
+    return why
+      ? t('{failing}, mostly {why}', { failing, why: t(MOSTLY[why]) })
+      : failing;
   }
-  return `slow, 1 in 100 requests take ${formatMs(r.p99)} or longer`;
+  return t('slow, 1 in 100 requests take {ms} or longer', { ms: formatMs(r.p99) });
 }
 
 /** Worst first: by share failing, then by p99. */
@@ -151,11 +154,18 @@ export function routeSentence(
   if (hurting.length === 0 || between.length + fine.length === 0) return null;
   hurting.sort(worse);
   between.sort(worse);
-  const parts = hurting.map((r) => `${nameOf(r.clientId)}: ${trouble(r)}.`);
+  const parts = hurting.map((r) =>
+    t('{name}: {trouble}.', { name: nameOf(r.clientId), trouble: trouble(r) }),
+  );
   for (const r of between) {
-    parts.push(`${nameOf(r.clientId)}: ${formatPct(r.errorRate)} failing.`);
+    parts.push(
+      t('{name}: {share} failing.', {
+        name: nameOf(r.clientId),
+        share: formatPct(r.errorRate),
+      }),
+    );
   }
-  if (fine.length > 0) parts.push(`${list(fine)}: fine.`);
+  if (fine.length > 0) parts.push(t('{names}: fine.', { names: list(fine) }));
   return parts.join(' ');
 }
 

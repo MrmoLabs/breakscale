@@ -10,11 +10,20 @@ import type { Goal } from '../sim/challenge';
 import type { RequestTimeline, TimelineEvent, Violation } from '../sim/oplog';
 import type { FailureReason } from '../sim/types';
 import { formatCount, formatGoalMs, formatGoalPct, formatShareDown } from './format';
+import { getLocale } from '../i18n';
+import * as zh from '../i18n/zh/breakCopyZh';
 
 /* ------------------------------------------------------------------ *
  * The words "Can you break it?" uses: fault phrases, schedules and
  * verdict sentences. Kept apart from the panel so they can be tested
  * without rendering anything.
+ *
+ * These sentences are COMPOSED, not picked from a table, and Chinese word
+ * order differs from English in ways a suffix cannot fix ("at 10s" lands
+ * before the verb in Chinese), so each builder dispatches to a same-
+ * signature mirror in src/i18n/zh/breakCopyZh.ts when the locale is zh.
+ * The English path below is byte-identical to what it always was, which is
+ * what this file's tests pin.
  * ------------------------------------------------------------------ */
 
 /** Names for the parts of a design, by id. */
@@ -36,6 +45,7 @@ function pct(rate: number): string {
 
 /** One fault, without its timing: "slow Database 5x". */
 export function faultPhrase(a: Attack, names: Names): string {
+  if (getLocale() === 'zh') return zh.faultPhrase(a, names);
   switch (a.kind) {
     case 'crash':
       return `crash ${names.node(a.target)}`;
@@ -58,6 +68,7 @@ export function faultPhrase(a: Attack, names: Names): string {
 
 /** One fault with its timing: "slow Database 5x at 10s for 5s". */
 export function attackPhrase(a: Attack, names: Names): string {
+  if (getLocale() === 'zh') return zh.attackPhrase(a, names);
   const length = a.forMs === null ? '' : ` for ${secs(a.forMs)}`;
   return `${faultPhrase(a, names)} at ${secs(a.atMs)}${length}`;
 }
@@ -67,6 +78,7 @@ export function attackPhrase(a: Attack, names: Names): string {
  * with "and", later ones with "then". Times are on the replay's clock.
  */
 export function scheduleSentence(attacks: readonly Attack[], names: Names): string {
+  if (getLocale() === 'zh') return zh.scheduleSentence(attacks, names);
   const groups: Attack[][] = [];
   for (const a of attacks) {
     const last = groups[groups.length - 1];
@@ -82,6 +94,11 @@ export function scheduleSentence(attacks: readonly Attack[], names: Names): stri
 /** The counted window, as the verdict names it. */
 export const WINDOW_PHRASE = `Between ${secs(BREAK_WARMUP_MS)} and ${secs(BREAK_END_MS)}`;
 
+/** Locale-aware form of the window, for composed sentences. */
+export function windowPhrase(): string {
+  return getLocale() === 'zh' ? zh.windowPhrase() : WINDOW_PHRASE;
+}
+
 /** Whose requests a goal is about: "requests" or "requests from Checkout". */
 function whose(goal: Goal, names: Names): string {
   return goal.route === undefined
@@ -94,6 +111,7 @@ function whose(goal: Goal, names: Names): string {
  * fell behind broke whatever the goal said, so it gets the reason instead.
  */
 export function goalLine(goal: Goal, run?: SeedRun): string {
+  if (getLocale() === 'zh') return zh.goalLine(goal, run);
   if (run?.outcome === 'falling-behind') {
     return 'A backlog that keeps growing fails everything in the end, so this counts as broken whatever the goal.';
   }
@@ -113,6 +131,7 @@ export function goalLine(goal: Goal, run?: SeedRun): string {
 
 /** What a run did to the goal, in a sentence, without the goal itself. */
 export function effectSentence(run: SeedRun, goal: Goal, names: Names): string {
+  if (getLocale() === 'zh') return zh.effectSentence(run, goal, names);
   const who = whose(goal, names);
   if (run.outcome === 'nothing-completed') {
     return `${WINDOW_PHRASE}, none of the ${who} got through.`;
@@ -148,6 +167,7 @@ export function effectSentence(run: SeedRun, goal: Goal, names: Names): string {
 
 /** The fault-free figure under a goal: "With no faults, 0.4% of requests fail." */
 export function baselineSentence(run: SeedRun, goal: Goal, names: Names): string {
+  if (getLocale() === 'zh') return zh.baselineSentence(run, goal, names);
   const who = whose(goal, names);
   if (run.outcome === 'nothing-completed')
     return `With no faults, none of the ${who} get through.`;
@@ -184,6 +204,7 @@ export function baselineSentence(run: SeedRun, goal: Goal, names: Names): string
 
 /** What the search is doing, announced as it changes. */
 export function phaseLine(phase: SearchPhase): string {
+  if (getLocale() === 'zh') return zh.phaseLine(phase);
   switch (phase) {
     case 'baseline':
       return 'Measuring it with no faults';
@@ -202,6 +223,7 @@ export function phaseLine(phase: SearchPhase): string {
 
 /** The near miss so far, or that there has not been one. */
 export function closestLine(closest: Closest | null, goal: Goal, names: Names): string {
+  if (getLocale() === 'zh') return zh.closestLine(closest, goal, names);
   if (closest === null || closest.score < 0.5) return 'Nothing has come close yet.';
   const sentence = scheduleSentence(closest.attacks, names).slice(0, -1);
   const what = `${sentence.charAt(0).toLowerCase()}${sentence.slice(1)}`;
@@ -221,6 +243,7 @@ export function closestLine(closest: Closest | null, goal: Goal, names: Names): 
 
 /** How many of each size the search tried. */
 export function triedLine(bySize: readonly [number, number, number]): string {
+  if (getLocale() === 'zh') return zh.triedLine(bySize);
   const parts = [`One fault: ${bySize[0]}.`];
   if (bySize[1] > 0) parts.push(`Two at once: ${bySize[1]}.`);
   if (bySize[2] > 0) parts.push(`Three at once: ${bySize[2]}.`);
@@ -242,6 +265,7 @@ export function singlePointLines(
   points: readonly SinglePoint[],
   names: Names,
 ): string[] {
+  if (getLocale() === 'zh') return zh.singlePointLines(points, names);
   const byClient = new Map<string, string[]>();
   for (const p of points) {
     const what = p.type === 'node' ? names.node(p.id) : names.edge(p.id);
@@ -291,6 +315,7 @@ function times(n: number): string {
  * and when, on the replay's clock.
  */
 export function evidenceSentence(v: Violation, names: Names): string {
+  if (getLocale() === 'zh') return zh.evidenceSentence(v, names);
   if (v.check === 'atMostOnce') {
     const at = v.chargedMs.map(clock);
     const told =
@@ -422,6 +447,7 @@ export function timelineWords(
   names: Names,
   v?: Violation,
 ): TimelineLine[] {
+  if (getLocale() === 'zh') return zh.timelineWords(tl, names, v);
   // A try whose answer was lost has already finished, so when its caller
   // gives up on it, it is not still running anywhere.
   const answered = new Set<string>();
@@ -443,6 +469,7 @@ export function timelineWords(
  * many things that is on the run with no faults, and what was not checked.
  */
 export function checkedLine(goal: Goal, checked: number): string {
+  if (getLocale() === 'zh') return zh.checkedLine(goal, checked);
   const n = formatCount(checked);
   switch (goal.metric) {
     case 'doubleCharges':
@@ -460,11 +487,17 @@ export function checkedLine(goal: Goal, checked: number): string {
 export const TRUNCATED_LINE =
   'Not every request was checked: this design sends more than the 1,048,576 requests one check can follow, and the ones after that were left out.';
 
+/** Locale-aware form of the truncation note, for display. */
+export function truncatedLine(): string {
+  return getLocale() === 'zh' ? zh.truncatedLine() : TRUNCATED_LINE;
+}
+
 /**
  * For a held double-charge goal where nothing on the way to a charge
  * retries: why it held, so it is not read as the work of idempotency.
  */
 export function nothingRetriesLine(charged: readonly string[], names: Names): string {
+  if (getLocale() === 'zh') return zh.nothingRetriesLine(charged, names);
   const parts = listed(charged.map(names.node));
   return `Nothing on the way to ${parts} sends a call again, and no connection was tried delivering a call twice, so nothing tried could charge twice. Turn on retries before it, or let the search deliver requests twice, to test it.`;
 }
@@ -474,6 +507,7 @@ export function nothingRetriesLine(charged: readonly string[], names: Names): st
  * part it was about has gone from the design.
  */
 export function goneLine(id: string): string {
+  if (getLocale() === 'zh') return zh.goneLine(id);
   switch (id.split(':')[0]) {
     case 'saved':
       return 'Nothing in the design says a write is saved before it is any more, so no saved write can be lost this way.';

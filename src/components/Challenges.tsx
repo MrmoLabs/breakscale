@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { t } from '../i18n';
+import { challengeCopy } from '../i18n/content/challenges';
 import type { Challenge } from '../sim/challenge';
 import type { ChallengeBadge } from '../challengeWorkspace';
 import { inPickerOrder } from '../challengeWorkspace';
@@ -96,10 +98,12 @@ export function Challenges({
         <div className="ex-head">
           <div>
             <h2 id="chal-title" className="ex-title">
-              Challenges
+              {t('Challenges')}
             </h2>
             <p className="ex-sub">
-              A system that does not meet its requirement. Work out why, and fix it.
+              {t(
+                'A system that does not meet its requirement. Work out why, and fix it.',
+              )}
             </p>
           </div>
           <CloseButton onClick={onClose} />
@@ -114,12 +118,13 @@ export function Challenges({
             >
               {groups.length > 1 ? (
                 <h3 id={`chal-tier-${tier}`} className="label chal-tier-title">
-                  Level {tier}
+                  {t('Level {n}', { n: tier })}
                 </h3>
               ) : null}
               <ul className="ex-grid">
                 {list.map((c) => {
                   const badge = badgeOf(c);
+                  const copy = challengeCopy(c);
                   return (
                     <li key={c.id}>
                       <button
@@ -130,11 +135,11 @@ export function Challenges({
                           onClose();
                         }}
                       >
-                        <span className="ex-item-name">{c.name}</span>
-                        <span className="ex-item-desc">{c.brief}</span>
+                        <span className="ex-item-name">{copy.name}</span>
+                        <span className="ex-item-desc">{copy.brief}</span>
                         {badge ? (
                           <span className={`ex-item-active chal-badge is-${badge}`}>
-                            {BADGE_TEXT[badge]}
+                            {t(BADGE_TEXT[badge])}
                           </span>
                         ) : null}
                       </button>

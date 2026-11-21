@@ -1,5 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
+import { t } from '../i18n';
+import { incidentCopy } from '../i18n/content/incidents';
 import type { Incident } from '../sim/incidents';
 import './Incidents.css';
 import { CloseButton } from './CloseButton';
@@ -109,6 +111,11 @@ export function IncidentPanel({
     onClose();
   };
 
+  /* The incident's display text, in the reader's language. The date and the
+     source URL are the postmortem's facts and pass through; the caption
+     arrives already translated from the replay clock in the shell. */
+  const copy = incidentCopy(incident);
+
   return (
     <section
       ref={sectionRef}
@@ -120,9 +127,11 @@ export function IncidentPanel({
     >
       <header className="chal-head">
         <div className="chal-head-text">
-          <p className="label chal-kicker">Real incident, {incident.date}</p>
+          <p className="label chal-kicker">
+            {t('Real incident, {date}', { date: incident.date })}
+          </p>
           <h2 id={headingId} ref={headingRef} className="chal-name" tabIndex={-1}>
-            {incident.name}
+            {copy.name}
           </h2>
         </div>
         <button
@@ -130,8 +139,8 @@ export function IncidentPanel({
           className="btn btn-ghost btn-sm btn-icon chal-collapse"
           aria-expanded={!collapsed}
           aria-controls={bodyId}
-          aria-label={collapsed ? 'Show the panel' : 'Fold the panel'}
-          title={collapsed ? 'Show the panel' : 'Fold the panel'}
+          aria-label={collapsed ? t('Show the panel') : t('Fold the panel')}
+          title={collapsed ? t('Show the panel') : t('Fold the panel')}
           onClick={() => setCollapsed((c) => !c)}
         >
           <svg
@@ -165,14 +174,16 @@ export function IncidentPanel({
 
       <div id={bodyId} className="chal-body" hidden={collapsed}>
         <p className="inc-model">
-          A simplified model. Times and numbers here are from the simulator, not the
-          real event. {incident.simNote}
+          {t(
+            'A simplified model. Times and numbers here are from the simulator, not the real event.',
+          )}{' '}
+          {copy.simNote}
         </p>
-        <p className="chal-brief inc-story">{incident.story.join(' ')}</p>
+        <p className="chal-brief inc-story">{copy.story.join(' ')}</p>
         <p className="inc-source">
-          Source:{' '}
-          <a href={incident.source.url} target="_blank" rel="noreferrer">
-            {incident.source.title}
+          {t('Source:')}{' '}
+          <a href={copy.sourceUrl} target="_blank" rel="noreferrer">
+            {copy.sourceTitle}
           </a>
         </p>
         {/* Watching comes first: the brief makes sense once the outage has
@@ -183,14 +194,14 @@ export function IncidentPanel({
             className={`btn btn-sm${watched ? '' : ' btn-primary'}`}
             onClick={watch}
           >
-            {watched ? 'Watch again' : 'Watch it happen'}
+            {watched ? t('Watch again') : t('Watch it happen')}
           </button>
           <button
             type="button"
             className={`btn btn-sm${watched ? ' btn-primary' : ''}`}
             onClick={onFix}
           >
-            Fix it
+            {t('Fix it')}
           </button>
         </div>
       </div>

@@ -13,6 +13,8 @@ import type {
   Topology,
 } from '../sim/types';
 import { formatCount, formatElapsed, formatPct } from './format';
+import { t } from '../i18n';
+import { displayLabel } from '../i18n/display';
 
 /* ------------------------------------------------------------------ *
  * Fault controls: the choices, the words, and the wiring to the engine.
@@ -163,26 +165,46 @@ export interface CableInfo {
 
 /** The sentence under the section title. Plain words, and the time it began. */
 export function faultStatus(fault: ActiveFailure | null): string {
-  if (!fault) return 'Working normally.';
+  if (!fault) return t('Working normally.');
   const since = formatElapsed(fault.sinceMs / 1000);
   switch (fault.kind) {
     case 'crash':
-      return `Crashed at ${since}. Every request sent to it fails until you fix it.`;
+      return t('Crashed at {since}. Every request sent to it fails until you fix it.', {
+        since,
+      });
     case 'slow':
-      return `Running ${formatFactor(fault.factor ?? 1)} slower since ${since}. Requests wait longer for it, and the line behind it grows.`;
+      return t(
+        'Running {factor} slower since {since}. Requests wait longer for it, and the line behind it grows.',
+        { factor: formatFactor(fault.factor ?? 1), since },
+      );
     case 'errors':
-      return `Failing ${formatPct(fault.rate ?? 1)} of requests since ${since}. It stays up, so callers keep sending it work.`;
+      return t(
+        'Failing {rate} of requests since {since}. It stays up, so callers keep sending it work.',
+        { rate: formatPct(fault.rate ?? 1), since },
+      );
     case 'partition':
-      return `Cut off from the network since ${since}. Anything sent over its cut connections fails until you fix it, and the connections below show which ones.`;
+      return t(
+        'Cut off from the network since {since}. Anything sent over its cut connections fails until you fix it, and the connections below show which ones.',
+        { since },
+      );
     case 'crash-instance':
-      return `One instance crashed at ${since}. The work it held was lost, and the others carry its share with fewer slots until you fix it. If it was the only one, nothing is serving.`;
+      return t(
+        'One instance crashed at {since}. The work it held was lost, and the others carry its share with fewer slots until you fix it. If it was the only one, nothing is serving.',
+        { since },
+      );
     case 'restart': {
       const back = formatElapsed((fault.sinceMs + (fault.downMs ?? 0)) / 1000);
-      return `Restarting since ${since}. Every request sent to it fails until it is back at ${back}.`;
+      return t(
+        'Restarting since {since}. Every request sent to it fails until it is back at {back}.',
+        { since, back },
+      );
     }
     case 'pause': {
       const until = formatElapsed((fault.sinceMs + (fault.pauseMs ?? 0)) / 1000);
-      return `Stalled since ${since}, until ${until}. It keeps its work but does none of it, and new requests wait at the door. Callers' timeouts keep running, so they may give up and send the same request again.`;
+      return t(
+        "Stalled since {since}, until {until}. It keeps its work but does none of it, and new requests wait at the door. Callers' timeouts keep running, so they may give up and send the same request again.",
+        { since, until },
+      );
     }
   }
 }
@@ -193,11 +215,21 @@ export function faultStatus(fault: ActiveFailure | null): string {
  */
 export function replyCutStatus(cut: ActiveReplyCut, callerWaits: boolean): string {
   const since = formatElapsed(cut.sinceMs / 1000);
-  const n = cut.lost === 1 ? '1 answer' : `${formatCount(cut.lost)} answers`;
-  const head = `Losing every answer back across it since ${since}, ${n} so far. Requests still get through and do their work.`;
+  const n =
+    cut.lost === 1 ? t('1 answer') : t('{n} answers', { n: formatCount(cut.lost) });
+  const head = t(
+    'Losing every answer back across it since {since}, {n} so far. Requests still get through and do their work.',
+    { since, n },
+  );
   return callerWaits
-    ? `${head} The caller has no timeout, so it waits for good, and each request it is waiting on keeps a slot.`
-    : `${head} The caller waits until its timeout gives up, and with retries it sends the request again.`;
+    ? t(
+        '{head} The caller has no timeout, so it waits for good, and each request it is waiting on keeps a slot.',
+        { head },
+      )
+    : t(
+        '{head} The caller waits until its timeout gives up, and with retries it sends the request again.',
+        { head },
+      );
 }
 
 /**
@@ -205,16 +237,27 @@ export function replyCutStatus(cut: ActiveReplyCut, callerWaits: boolean): strin
  * caller, which has no timeout, still waits on the ones it lost.
  */
 export function strandedStatus(waiting: number): string {
-  const calls = waiting === 1 ? '1 call is' : `${formatCount(waiting)} calls are`;
-  return `Answers get through again, but ${calls} still waiting for answers it lost. The caller has no timeout, so they wait for good and each keeps a slot. Crash and fix the caller, or Reset, to free them.`;
+  return waiting === 1
+    ? t(
+        'Answers get through again, but 1 call is still waiting for answers it lost. The caller has no timeout, so they wait for good and each keeps a slot. Crash and fix the caller, or Reset, to free them.',
+      )
+    : t(
+        'Answers get through again, but {n} calls are still waiting for answers it lost. The caller has no timeout, so they wait for good and each keeps a slot. Crash and fix the caller, or Reset, to free them.',
+        { n: formatCount(waiting) },
+      );
 }
 
 /** The status line for a cable delivering some requests twice. */
 export function dupStatus(dup: ActiveDuplicate): string {
   const since = formatElapsed(dup.sinceMs / 1000);
   const n =
-    dup.delivered === 1 ? '1 request' : `${formatCount(dup.delivered)} requests`;
-  return `Delivering ${formatPct(dup.rate)} of requests twice since ${since}, ${n} so far. The second copy does the work again, and nobody hears its answer.`;
+    dup.delivered === 1
+      ? t('1 request')
+      : t('{n} requests', { n: formatCount(dup.delivered) });
+  return t(
+    'Delivering {rate} of requests twice since {since}, {n} so far. The second copy does the work again, and nobody hears its answer.',
+    { rate: formatPct(dup.rate), since, n },
+  );
 }
 
 /** What a restart loses on this node beyond the work in progress, or undefined. */
@@ -222,13 +265,13 @@ export function restartLosesFor(
   node: Pick<SimNode, 'kind' | 'config'>,
 ): string | undefined {
   if (flushesLater(node)) {
-    return 'So are the writes it said were saved but had not written to disk yet.';
+    return t('So are the writes it said were saved but had not written to disk yet.');
   }
   const b = behaviourFor(node.kind);
   if (b.acksBeforeSaved === true) {
-    return 'So are the writes it was holding to save later.';
+    return t('So are the writes it was holding to save later.');
   }
-  if (b.buffersForConsumers) return 'So are the jobs waiting in it.';
+  if (b.buffersForConsumers) return t('So are the jobs waiting in it.');
   return undefined;
 }
 
@@ -350,7 +393,12 @@ export function faultViewFor(
   const edgeState = snapshot?.edgeState ?? {};
   const stateOf = (id: string): CableState =>
     severed.has(id) ? 'cut' : edgeState[id] === 'cut' ? 'partitioned' : 'connected';
-  const nameOf = (id: string): string => byId.get(id)?.label ?? id;
+  // Node names in the sentences below are shown in the reader's language
+  // while the stored label stays English (display.ts).
+  const nameOf = (id: string): string => {
+    const n = byId.get(id);
+    return n ? displayLabel(n.label) : id;
+  };
 
   const carries = (e: SimEdge): boolean => {
     const from = byId.get(e.from);
@@ -369,9 +417,9 @@ export function faultViewFor(
     for (const e of topology.edges) {
       const label =
         e.from === sel.node.id
-          ? `To ${nameOf(e.to)}`
+          ? t('To {name}', { name: nameOf(e.to) })
           : e.to === sel.node.id
-            ? `From ${nameOf(e.from)}`
+            ? t('From {name}', { name: nameOf(e.from) })
             : null;
       if (label === null) continue;
       cables.push({
@@ -399,7 +447,7 @@ export function faultViewFor(
       const from = byId.get(e.from);
       edge = {
         id: e.id,
-        label: `${nameOf(e.from)} to ${nameOf(e.to)}`,
+        label: t('{from} to {to}', { from: nameOf(e.from), to: nameOf(e.to) }),
         state,
         ...(by ? { cutBy: nameOf(by.nodeId) } : {}),
         lossRate: lossOf(e.lossRate),

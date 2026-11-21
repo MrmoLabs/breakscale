@@ -15,6 +15,7 @@
     A system design simulator where every number is measured.<br />
     Build a system, load it until it breaks, and watch why.
   </h3>
+  <p><a href="README.zh-CN.md">简体中文说明</a></p>
 </div>
 
 <p align="center">

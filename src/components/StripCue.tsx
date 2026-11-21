@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { t } from '../i18n';
 import './StripCue.css';
 
 /**
@@ -92,7 +93,15 @@ export function StripCue() {
       }}
     >
       {count
-        ? `${count.shown} of ${count.total} shown. ${count.end ? 'Back to the top' : 'More below'}`
+        ? count.end
+          ? t('{shown} of {total} shown. Back to the top', {
+              shown: count.shown,
+              total: count.total,
+            })
+          : t('{shown} of {total} shown. More below', {
+              shown: count.shown,
+              total: count.total,
+            })
         : null}
     </button>
   );

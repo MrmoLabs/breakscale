@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import type { ActiveFailure } from '../sim/types';
+import { t } from '../i18n';
 import { DEFAULT_SLOW_FACTOR, formatFactor } from './faultWiring';
 import './PresentBar.css';
 
@@ -33,22 +34,22 @@ export interface PresentBarProps {
 
 /** "Crashed", "Slowed 5x": the part's state in the words its buttons use. */
 function faultWord(f: ActiveFailure | null): string {
-  if (f === null) return 'Running';
+  if (f === null) return t('Running');
   switch (f.kind) {
     case 'crash':
-      return 'Crashed';
+      return t('Crashed');
     case 'crash-instance':
-      return 'One instance down';
+      return t('One instance down');
     case 'slow':
-      return `Slowed ${formatFactor(f.factor ?? 1)}`;
+      return t('Slowed {factor}', { factor: formatFactor(f.factor ?? 1) });
     case 'errors':
-      return 'Glitching';
+      return t('Glitching');
     case 'partition':
-      return 'Cut off';
+      return t('Cut off');
     case 'restart':
-      return 'Restarting';
+      return t('Restarting');
     case 'pause':
-      return 'Paused';
+      return t('Paused');
   }
 }
 
@@ -92,7 +93,11 @@ export function PresentBar({
   return (
     <div ref={ref} className="pb" data-chrome="present" data-spot-avoid="">
       {part ? (
-        <div className="pb-part" role="group" aria-label={`Faults for ${part.label}`}>
+        <div
+          className="pb-part"
+          role="group"
+          aria-label={t('Faults for {name}', { name: part.label })}
+        >
           <p className="pb-name">
             <span className="pb-label">{part.label}</span>
             <span className={`pb-state${fault ? ' is-danger' : ''}`} role="status">
@@ -107,7 +112,7 @@ export function PresentBar({
               aria-keyshortcuts={coarse ? undefined : 'X'}
               onClick={() => onCrash(part.id)}
             >
-              Crash {key('X')}
+              {t('Crash')} {key('X')}
             </button>
             {part.canSlow ? (
               <button
@@ -117,7 +122,8 @@ export function PresentBar({
                 aria-keyshortcuts={coarse ? undefined : 'W'}
                 onClick={() => onSlow(part.id)}
               >
-                Slow down {formatFactor(DEFAULT_SLOW_FACTOR)} {key('W')}
+                {t('Slow down {factor}', { factor: formatFactor(DEFAULT_SLOW_FACTOR) })}{' '}
+                {key('W')}
               </button>
             ) : null}
             <button
@@ -127,15 +133,15 @@ export function PresentBar({
               aria-keyshortcuts={coarse ? undefined : 'R'}
               onClick={() => onFix(part.id)}
             >
-              Fix {key('R')}
+              {t('Fix')} {key('R')}
             </button>
           </div>
         </div>
       ) : (
         <p className="pb-hint">
           {coarse
-            ? 'Tap a part to crash, slow or fix it.'
-            : 'Click a part or Tab to one. X crashes it, W slows it, R fixes it.'}
+            ? t('Tap a part to crash, slow or fix it.')
+            : t('Click a part or Tab to one. X crashes it, W slows it, R fixes it.')}
         </p>
       )}
       <div className="pb-exit">
@@ -145,7 +151,7 @@ export function PresentBar({
             className="btn pb-btn pb-fullscreen"
             onClick={onFullscreen}
           >
-            {fullscreen ? 'Leave full screen' : 'Full screen'}
+            {fullscreen ? t('Leave full screen') : t('Full screen')}
           </button>
         ) : null}
         <button
@@ -154,7 +160,7 @@ export function PresentBar({
           aria-keyshortcuts={coarse ? undefined : 'Shift+P'}
           onClick={onStop}
         >
-          Stop presenting {key('Shift+P')}
+          {t('Stop presenting')} {key('Shift+P')}
         </button>
       </div>
     </div>

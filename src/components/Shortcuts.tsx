@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { shortcutLabel } from '../modKey';
 import { createPortal } from 'react-dom';
+import { t } from '../i18n';
 import { usePresence } from './presence';
 import './Shortcuts.css';
 import { CloseButton } from './CloseButton';
@@ -211,29 +212,34 @@ export function Shortcuts({ open, onClose }: ShortcutsProps) {
       >
         <div className="sc-head">
           <h2 id="sc-title" className="sc-title">
-            Keyboard shortcuts
+            {t('Keyboard shortcuts')}
           </h2>
           <CloseButton onClick={onClose} />
         </div>
 
-        <div className="sc-body" tabIndex={0} role="region" aria-label="Shortcuts list">
+        <div
+          className="sc-body"
+          tabIndex={0}
+          role="region"
+          aria-label={t('Shortcuts list')}
+        >
           {GROUPS.map((g) => (
             <section key={g.title} className="sc-group">
-              <h3 className="sc-group-title">{g.title}</h3>
+              <h3 className="sc-group-title">{t(g.title)}</h3>
               <dl className="sc-rows">
                 {g.rows.map((row) => (
                   <div key={row.does} className="sc-row">
                     <dt className="sc-keys">
                       {row.keys.map((k, i) => (
                         <span key={k} className="sc-alt">
-                          {i > 0 && <span className="sc-or">or</span>}
+                          {i > 0 && <span className="sc-or">{t('or')}</span>}
                           <kbd className="sc-kbd">
                             {k === 'Ctrl+wheel' ? k : shortcutLabel(k)}
                           </kbd>
                         </span>
                       ))}
                     </dt>
-                    <dd className="sc-does">{row.does}</dd>
+                    <dd className="sc-does">{t(row.does)}</dd>
                   </div>
                 ))}
               </dl>
